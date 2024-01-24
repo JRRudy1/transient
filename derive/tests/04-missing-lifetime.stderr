@@ -1,0 +1,5 @@
+error: Exactly one lifetime parameter is required!
+ --> tests/04-missing-lifetime.rs:8:9
+  |
+8 | struct S<T> {
+  |         ^

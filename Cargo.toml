@@ -1,0 +1,14 @@
+[package]
+name = "transient_any"
+version = "0.0.1"
+edition = "2021"
+
+[workspace]
+members = ["derive"]
+
+[dependencies]
+transient_any_derive = { path = "derive", optional = true}
+
+[features]
+default = ["derive"]
+derive = ["transient_any_derive"]
