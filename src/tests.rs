@@ -1,104 +1,155 @@
 
-use super::{
-    Erased, ErasedRef, ErasedMut,
-    Erase, MakeStatic, derive_MakeStatic
-};
+use super::{Erase, MakeStatic};
 
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct S<'a> {
-    value: &'a String
-}
-derive_MakeStatic!{S<'a>}
+/// Tests for a simple struct with no generic parameters.
+mod basic {
+    use super::*;
+    
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct S<'a> {
+        value: &'a String
+    }
+    unsafe impl<'a> MakeStatic<'a> for S<'a> {
+        type Static = S<'static>;
+    }
 
-// unsafe impl<'a> MakeStatic<'a> for S<'a> {
-//     type Static = S<'static>;
-// }
-
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct S2<'a, 'b: 'a> {
-    short: &'a String,
-    long: &'b String,
-}
-unsafe impl<'a, 'b: 'a> MakeStatic<'a> for S2<'a, 'b> {
-    type Static = S2<'static, 'static>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct S3<'a, T: 'static> {
-    value: &'a T,
-}
-unsafe impl<'a, T: 'static> MakeStatic<'a> for S3<'a, T> {
-    type Static = S3<'static, T>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct S4<'a, T> {
-    value: &'a T,
-}
-
-
-
-#[cfg_attr(test, test)]
-pub(super) fn test_ref() { // single lifetime (derived `MakeStatic` impl)
-    let value = "qwer".to_string();
-    let original: S<'_> = S{value: &value};
-    let erased: ErasedRef<'_> = original.as_erased();
-    erased.assert_is::<S>();
-    let restored = erased.restore::<S>().unwrap();
-    assert_eq!(restored, &original);
-}
-#[cfg_attr(test, test)]
-pub(super) fn test_custom() { // multiple lifetimes (custom `MakeStatic` impl)
-    let (short, long) = ("short".to_string(), "long".to_string());
-    let original: S2<'_, '_> = S2{short: &short, long: &long};
-    let erased: ErasedRef<'_> = original.as_erased();
-    erased.assert_is::<S2>();
-    let restored = erased.restore::<S2>().unwrap();
-    assert_eq!(restored, &original);
-}
-#[cfg_attr(test, test)]
-pub(super) fn test_generic() { // single lifetime, generic over `T` (custom `MakeStatic` impl)
-    let value = "qwer".to_string();
-    let original: S3<'_, String> = S3{value: &value};
-    let erased: ErasedRef<'_> = original.as_erased();
-    erased.assert_is::<S3<'_, String>>();
-    let restored = erased.restore::<S3<String>>().unwrap();
-    assert_eq!(restored, &original);
-}
-#[cfg_attr(test, test)]
-pub(super) fn test_owned() {
-    let value = "qwer".to_string();
-    let original: S<'_> = S{value: &value};
-    let erased: Erased<'_> = original.into_erased();
-    erased.assert_is::<S>();
-    let restored = erased.restore::<S>().unwrap();
-    assert_eq!(restored.value, &value);
-}
-#[cfg_attr(test, test)]
-pub(super) fn test_mut() {
-    let value = "qwer".to_string();
-    let mut original: S<'_> = S{value: &value};
-    let erased: ErasedMut = original.as_erased_mut();
-    erased.assert_is::<S>();
-    let restored = erased.restore::<S>().unwrap();
-    assert_eq!(restored.value, &value);
+    #[test]
+    pub(super) fn test_owned() {
+        let value = "qwer".to_string();
+        let original = S{value: &value};
+        let erased = original.clone().into_erased();
+        assert_eq!(erased.type_id(), S::type_id());
+        let restored = erased.restore::<S>().unwrap();
+        assert_eq!(restored, original);
+    }
+    #[test]
+    pub(super) fn test_ref() { // single lifetime (derived `MakeStatic` impl)
+        let value = "qwer".to_string();
+        let original = S{value: &value};
+        let erased = original.as_erased();
+        assert_eq!(erased.type_id(), S::type_id());
+        let restored = erased.restore::<S>().unwrap();
+        assert_eq!(restored, &original);
+    }
+    #[test]
+    pub(super) fn test_mut() {
+        let value = "qwer".to_string();
+        let mut original = S{value: &value};
+        let erased = original.as_erased_mut();
+        assert_eq!(erased.type_id(), S::type_id());
+        let restored = erased.restore::<S>().unwrap().clone();
+        assert_eq!(restored, original);
+    }
 }
 
+
+/// Tests for a struct with generic parameters.
+mod generics {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct S<'a, T: 'static> {
+        value: &'a T,
+    }
+    unsafe impl<'a, T: 'static> MakeStatic<'a> for S<'a, T> {
+        type Static = S<'static, T>;
+    }
+
+    type SS<'a> = S<'a, String>;
+
+    #[test]
+    pub(super) fn test_owned() {
+        let value = "qwer".to_string();
+        let original = SS{value: &value};
+        let erased = original.clone().into_erased();
+        assert_eq!(erased.type_id(), SS::type_id());
+        let restored = erased.restore::<SS>().unwrap();
+        assert_eq!(restored, original);
+    }
+
+    #[test]
+    pub(super) fn test_ref() {
+        let value = "qwer".to_string();
+        let original = SS{value: &value};
+        let erased = original.as_erased();
+        assert_eq!(erased.type_id(), SS::type_id());
+        let restored = erased.restore::<SS>().unwrap();
+        assert_eq!(restored, &original);
+    }
+
+    #[test]
+    pub(super) fn test_mut() {
+        let value = "qwer".to_string();
+        let mut original = SS{value: &value};
+        let erased = original.as_erased_mut();
+        assert_eq!(erased.type_id(), SS::type_id());
+        let restored = erased.restore::<SS>().unwrap().clone();
+        assert_eq!(restored, original);
+    }
+}
+
+
+/// Tests for a struct with more than one lifetime parameter.
+mod multi_lifetime {
+    use super::*;
+
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct S<'a, 'b: 'a> {
+        short: &'a String,
+        long: &'b String,
+    }
+    unsafe impl<'a, 'b: 'a> MakeStatic<'a> for S<'a, 'b> {
+        type Static = S<'static, 'static>;
+    }
+
+    #[test]
+    pub(super) fn test_ref() {
+        let (short, long) = ("short".to_string(), "long".to_string());
+        let original = S {short: &short, long: &long};
+        let erased = original.as_erased();
+        assert_eq!(erased.type_id(), S::type_id());
+        let restored = erased.restore::<S>().unwrap();
+        assert_eq!(restored, &original);
+    }
+}
+
+
+/// Tests for impls generated by the derive macro
 #[cfg(feature = "derive")]
-#[test]
-pub fn test_derive() {
-    use crate as transient_any;
+mod derived {
+    use super::*;
+    use crate as transient_any;  // FIXME
 
-    #[derive(MakeStatic)]
+    #[derive(MakeStatic, Clone, Debug, PartialEq, Eq)]
     struct S<'a, T> {
         value: &'a T,
     }
-    let value = "qwer".to_string();
-    let original: S<String> = S{value: &value};
-    let erased: Erased = original.into_erased();
-    erased.assert_is::<S<String>>();
-    let restored = erased.restore::<S<String>>().unwrap();
-    assert_eq!(restored.value, &value);
+    type SS<'a> = S<'a, String>;
+
+    #[test]
+    pub fn test_transient() {
+        let string = "qwer".to_string();
+        let original = SS{value: &string};
+        let erased = original.clone().into_erased();
+        assert_eq!(erased.type_id(), SS::type_id());
+        let restored = erased.restore::<SS>().unwrap();
+        assert_eq!(restored, original);
+    }
+
+    #[derive(MakeStatic, Clone, Debug, PartialEq, Eq)]
+    struct S2<T> {
+        value: T,
+    }
+    type SS2 = S2<String>;
+
+    #[test]
+    pub fn test_static() {
+        let original = SS2{value: "qwer".to_string()};
+        let erased = original.clone().into_erased();
+        assert_eq!(erased.type_id(), SS2::type_id());
+        let restored = erased.restore::<SS2>().unwrap();
+        assert_eq!(restored, original);
+    }
 }
