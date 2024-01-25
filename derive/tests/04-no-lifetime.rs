@@ -1,13 +1,13 @@
-
+//! Tests the behavior when used on structs without a lifetime parameter
 use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
-struct S<'a, T> {
-    value: &'a T,
+struct S<T> {
+    value: T,
 }
 
-type SS<'a> = S<'a, String>;
+type SS = S<String>;
 
 
 fn main() {
@@ -17,27 +17,24 @@ fn main() {
 }
 
 fn test_owned() {
-    let string = "qwer".to_string();
-    let original: SS = S{value: &string };
-    let erased: Erased = original.clone().into_erased();
+    let original = S{value: "qwer".to_string()};
+    let erased: Erased<'static> = original.clone().into_erased();
     assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap();
     assert_eq!(restored, original);
 }
 
-fn test_ref() { // single lifetime (derived `MakeStatic` impl)
-    let string = "qwer".to_string();
-    let original: SS = S{value: &string};
-    let erased: ErasedRef = original.as_erased();
+fn test_ref() {
+    let original = S{value: "qwer".to_string()};
+    let erased: ErasedRef<'_, 'static> = original.as_erased();
     assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap();
     assert_eq!(restored, &original);
 }
 
-fn test_mut() { // start of 'real
-    let string = "qwer".to_string();
-    let mut original: SS = SS{value: &string};
-    let erased: ErasedMut = original.as_erased_mut();
+fn test_mut() {
+    let mut original = S{value: "qwer".to_string()};
+    let erased: ErasedMut<'_, 'static> = original.as_erased_mut();
     assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap().clone();
     assert_eq!(restored, original);

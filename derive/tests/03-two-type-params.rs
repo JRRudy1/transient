@@ -1,6 +1,5 @@
 
-use transient_any::{Erase, Erased, ErasedRef, ErasedMut};
-use transient_any_derive::MakeStatic;
+use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
 
 
 #[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
@@ -20,9 +19,9 @@ fn main() {
 
 fn test_owned() {
     let (string, number) = ("qwer".to_string(), 5_usize);
-    let original: SS<'_> = S{borrowed: &string, owned: number};
-    let erased: Erased<'_> = original.into_erased();
-    erased.assert_is::<SS>();
+    let original: SS = S{borrowed: &string, owned: number};
+    let erased: Erased = original.into_erased();
+    assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap();
     assert_eq!(restored.borrowed, &string);
     assert_eq!(restored.owned, number);
@@ -30,18 +29,18 @@ fn test_owned() {
 
 fn test_ref() { // single lifetime (derived `MakeStatic` impl)
     let value = "qwer".to_string();
-    let original: SS<'_> = S{borrowed: &value, owned: 5};
-    let erased: ErasedRef<'_> = original.as_erased();
-    erased.assert_is::<SS>();
+    let original: SS = S{borrowed: &value, owned: 5};
+    let erased: ErasedRef = original.as_erased();
+    assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap();
     assert_eq!(restored, &original);
 }
 
 fn test_mut() {
     let (string, number) = ("qwer".to_string(), 5_usize);
-    let mut original: SS<'_> = S{borrowed: &string, owned: number};
+    let mut original: SS = S{borrowed: &string, owned: number};
     let erased: ErasedMut = original.as_erased_mut();
-    erased.assert_is::<SS>();
+    assert_eq!(erased.type_id(), SS::type_id());
     let restored = erased.restore::<SS>().unwrap();
     assert_eq!(restored.borrowed, &string);
     assert_eq!(restored.owned, number);
