@@ -1,2 +1,15 @@
-/target
-/Cargo.lock
+
+# other
+Cargo.lock
+
+# build artifacts
+target
+build
+_build
+
+# IDE configs
+.idea
+.vscode
+
+# trybuild outputs
+derive/wip
