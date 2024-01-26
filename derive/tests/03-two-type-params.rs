@@ -1,8 +1,8 @@
 
-use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
+use transient_any::{Erased, ErasedRef, ErasedMut, TransientAny};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
+#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
 struct S<'a, T1, T2> {
     borrowed: &'a T1,
     owned: T2,
@@ -27,7 +27,7 @@ fn test_owned() {
     assert_eq!(restored.owned, number);
 }
 
-fn test_ref() { // single lifetime (derived `MakeStatic` impl)
+fn test_ref() { // single lifetime (derived `TransientAny` impl)
     let value = "qwer".to_string();
     let original: SS = S{borrowed: &value, owned: 5};
     let erased: ErasedRef = original.as_erased();

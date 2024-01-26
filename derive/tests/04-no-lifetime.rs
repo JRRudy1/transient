@@ -1,8 +1,8 @@
 //! Tests the behavior when used on structs without a lifetime parameter
-use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
+use transient_any::{Erased, ErasedRef, ErasedMut, TransientAny};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
+#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
 struct S<T> {
     value: T,
 }

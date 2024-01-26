@@ -69,19 +69,6 @@ impl<'src> Erased<'src> {
     }
 }
 
-/// If the wrapped object is `'static` we can safely expose it.
-impl Erased<'static> {
-    pub fn inner(&self) -> &dyn Any {
-        &*self.0
-    }
-    pub fn inner_mut(&mut self) -> &mut dyn Any {
-        &mut *self.0
-    }
-    pub fn into_inner(self) -> Box<dyn Any> {
-        self.0
-    }
-}
-
 
 /// Safely wraps a shared reference to a potentially non-static value
 /// that has been transmuted to `'static` and cast to `dyn Any`.
@@ -118,13 +105,6 @@ impl<'borrow, 'src: 'borrow> ErasedRef<'borrow, 'src> {
 
     pub fn is<T: MakeStatic<'src>>(&self) -> bool {
         self.0.is::<T::Static>()
-    }
-}
-
-/// If the wrapped object is `'static` we can safely expose it.
-impl<'borrow> ErasedRef<'borrow, 'static> {
-    pub fn inner(&self) -> &dyn Any {
-        &*self.0
     }
 }
 
@@ -167,11 +147,46 @@ impl<'borrow, 'src: 'borrow> ErasedMut<'borrow, 'src> {
     }
 }
 
-/// If the wrapped object is `'static` we can safely expose it.
-impl<'borrow> ErasedMut<'borrow, 'static> {
+
+// If the wrapped object is `'static` we can safely expose it.
+impl Erased<'static> {
+
+    /// Get a shared reference to the wrapped `dyn Any`; only
+    /// implemented when the original value was `'static`.
     pub fn inner(&self) -> &dyn Any {
         &*self.0
     }
+    /// Get a mutable reference to the wrapped `dyn Any`; only
+    /// implemented when the original value was `'static`.
+    pub fn inner_mut(&mut self) -> &mut dyn Any {
+        &mut *self.0
+    }
+    /// Move out of `self` and return the wrapped `Box<dyn Any`; only
+    /// implemented when the original value was `'static`.
+    pub fn into_inner(self) -> Box<dyn Any> {
+        self.0
+    }
+}
+
+// If the wrapped object is `'static` we can safely expose it.
+impl<'borrow> ErasedRef<'borrow, 'static> {
+    /// Get a shared reference to the wrapped `dyn Any`; only
+    /// implemented when the original value was `'static`.
+    pub fn inner(&self) -> &dyn Any {
+        &*self.0
+    }
+}
+
+// If the wrapped object is `'static` we can safely expose it.
+impl<'borrow> ErasedMut<'borrow, 'static> {
+
+    /// Get a shared reference to the wrapped `dyn Any`; only
+    /// implemented when the original value was `'static`.
+    pub fn inner(&self) -> &dyn Any {
+        &*self.0
+    }
+    /// Get a mutable reference to the wrapped `dyn Any`; only
+    /// implemented when the original value was `'static`.
     pub fn inner_mut(&mut self) -> &mut dyn Any {
         &mut *self.0
     }

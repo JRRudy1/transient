@@ -52,7 +52,7 @@ method on the `MakeStatic` trait.
 
 After deriving or implementing the `MakeStatic` trait for a type, the primary
 entry point for utilizing the functionality in this crate is provided by the
-`Erase` trait, which has a blanket `impl` for all `T: MakeStatic<'src>`.
+`TransientAny` trait, which has a blanket `impl` for all `T: MakeStatic<'src>`.
 This trait exposes safe methods for erasing the type of an owned value, shared
 reference, or mutable reference, each of which performs the necessary steps to
 extend the value's lifetime, erase its type, and then place it in a wrapper to
@@ -61,9 +61,9 @@ keep it safe.
 ## Example
 
 ```
-use transient_any::{MakeStatic, Erase};
+use transient_any::TransientAny;
 
-#[derive(MakeStatic, Clone, Debug, PartialEq, Eq)]
+#[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
 struct S<'a> {
     value: &'a String,
 }
@@ -92,11 +92,14 @@ mod erased;
 pub use erased::{Erased, ErasedRef, ErasedMut};
 
 #[cfg(feature = "derive")]
-pub use transient_any_derive::MakeStatic;
+pub use transient_any_derive::TransientAny;
 
 
 /// Trait providing safe operations on `MakeStatic`  types.
-pub trait Erase<'src>: MakeStatic<'src> {
+///
+/// This trait has a blanket impl for all `T: MakeStatic`, and cannot be
+/// implemented directly.
+pub trait TransientAny<'src>: MakeStatic<'src> {
     /// Erase the value's type and return a wrapper for safely restoring it.
     fn into_erased(self) -> Erased<'src> {
         Erased::new(self)
@@ -115,7 +118,7 @@ pub trait Erase<'src>: MakeStatic<'src> {
         Self::static_type_id()
     }
 }
-impl<'src, T: MakeStatic<'src>> Erase<'src> for T {}
+impl<'src, T: MakeStatic<'src>> TransientAny<'src> for T {}
 
 
 /// An unsafe trait for converting the lifetime parameters of a type to

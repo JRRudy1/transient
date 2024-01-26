@@ -1,6 +1,9 @@
 /*!
-Defines a "derive" macro for correctly implementing the `MakeStatic` trait.
+Defines the `TransientAny` derive macro that implements the `MakeStatic`
+and `TransientAny` traits for a struct with at most 1 lifetime parameter.
 
+While the `TransientAny` trait is not implemented directly by this macro, it
+is implicitly implemented due to the blanked impl for all `T: MakeStatic`.
 This macro is limited to structs satisfying the following conditions:
 
 - There must be at most 1 lifetime parameter. Structs with extra lifetime
@@ -10,12 +13,11 @@ to ensure that its shortest lifetime is chosen for the implementation.
 - There may be any number of type (or const) parameters, but the trait
 will only be implemented where `T: 'static` for each type `T`.
 
-
 Invocation with a type param and a lifetime:
 ```no_run
-use transient_any::MakeStatic;
+use transient_any::TransientAny;
 
-#[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
+#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
 struct S<'a, T: 'static> {
     value: &'a T,
 }
@@ -24,12 +26,11 @@ Generated impl:
 ```no_run
 # pub mod transient_any {pub unsafe trait MakeStatic<'a> {type Static;}}
 # struct S<'a, T> {value: &'a T}
-
 unsafe impl<'a, T: 'static> transient_any::MakeStatic<'a> for S<'a, T> {
     type Static = S<'static, T>;
 }
 ```
- */
+*/
 
 use proc_macro::TokenStream;
 use proc_macro2::{TokenStream as TokenStream2};
@@ -42,7 +43,7 @@ use syn::{
 
 
 /// Derive the `MakeStatic` trait.
-#[proc_macro_derive(MakeStatic)]
+#[proc_macro_derive(TransientAny)]
 pub fn derive_make_static(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
     let tokens = generate_impl(input)

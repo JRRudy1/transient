@@ -1,8 +1,8 @@
 
-use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
+use transient_any::{Erased, ErasedRef, ErasedMut, TransientAny};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
+#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
 struct S<'a, T> {
     value: &'a T,
 }
@@ -25,7 +25,7 @@ fn test_owned() {
     assert_eq!(restored, original);
 }
 
-fn test_ref() { // single lifetime (derived `MakeStatic` impl)
+fn test_ref() {
     let string = "qwer".to_string();
     let original: SS = S{value: &string};
     let erased: ErasedRef = original.as_erased();
@@ -34,7 +34,7 @@ fn test_ref() { // single lifetime (derived `MakeStatic` impl)
     assert_eq!(restored, &original);
 }
 
-fn test_mut() { // start of 'real
+fn test_mut() {
     let string = "qwer".to_string();
     let mut original: SS = SS{value: &string};
     let erased: ErasedMut = original.as_erased_mut();

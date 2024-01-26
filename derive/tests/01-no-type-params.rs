@@ -1,8 +1,8 @@
 
-use transient_any::{Erased, ErasedRef, ErasedMut, Erase, MakeStatic};
+use transient_any::{TransientAny, Erased, ErasedRef, ErasedMut};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, MakeStatic)]
+#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
 struct SS<'a> {
     value: &'a String,
 }
