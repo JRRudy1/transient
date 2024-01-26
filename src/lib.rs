@@ -1,4 +1,89 @@
-//! This library provides a mechanism for safely casting non-static data to/from `dyn Any`.
+/*!
+This crate provides a mechanism for safely casting non-static data to/from `dyn Any`.
+
+
+## Introduction
+
+The standard library's `Any` trait is used to emulate dynamic typing within Rust,
+and is extremely useful in cases where implementing a statically typed solution
+would be inconvenient, if not impossible. Examples include storing heterogeneous
+values in a `Vec`, or eliminating generic parameters from a type so that it can be
+used in object-safe trait methods.
+
+However, a significant limitation of the `Any` trait is its `'static` lifetime
+bound, which prevents it from being used for types containing any non-`'static`
+references. This bound eliminates many potential use-cases, and can force users
+to sacrifice performance by cloning data that could be borrowed in others.
+
+This crate aims to circumvent this limitation through careful use of unsafe
+code hidden behind a safe abstraction, so that type-erasure may be applied
+to transient (i.e. non-`'static`) data.
+
+
+## Approach
+
+The approach can be summarized as follows:
+
+1. The `MakeStatic<'src>` trait is implemented/derived for a type, which is a simple
+but `unsafe` trait that allows a transient type (or a reference to such) with minimum
+lifetime bound `'src` to be transmuted into a `'static` version of the same type.
+On its own, this operation would be extremely `unsafe`, but the following steps
+will make use of the trait's `'src` lifetime parameter to build a safe abstraction.
+
+2. The `'static`-ified type is then "erased" by casting to `dyn Any` (behind a box
+or reference), which is now possible thanks to the falsely-`'static` lifetime.
+However, using this object directly is still `unsafe`, as there is no lifetime
+bounding access to any borrowed data it contains.
+
+3. The erased value (or shared/mutable reference) is then wrapped in an `Erased`
+(or `ErasedRef`/`ErasedMut`) struct, which binds the value to the true lifetime
+`'src` using `PhantomData` to ensure that the borrowed data remains valid for
+the lifetime of the wrapper. The API of this wrapper struct is designed such
+that the wrapped value is not exposed in any safe public methods, and cannot be
+extracted or referenced directly.
+
+4. Finally, the `restore` method can be called to extract the value (or reference)
+in its original form. This method attempts to downcast the erased value as the
+given type, and then restores the original lifetime `'src` by calling another
+method on the `MakeStatic` trait.
+
+
+## Usage
+
+After deriving or implementing the `MakeStatic` trait for a type, the primary
+entry point for utilizing the functionality in this crate is provided by the
+`Erase` trait, which has a blanket `impl` for all `T: MakeStatic<'src>`.
+This trait exposes safe methods for erasing the type of an owned value, shared
+reference, or mutable reference, each of which performs the necessary steps to
+extend the value's lifetime, erase its type, and then place it in a wrapper to
+keep it safe.
+
+## Example
+
+```
+use transient_any::{MakeStatic, Erase};
+
+#[derive(MakeStatic, Clone, Debug, PartialEq, Eq)]
+struct S<'a> {
+    value: &'a String,
+}
+# fn main() {
+let string = "qwer".to_string();
+
+// create a "transient" struct that borrows data
+let original = S{value: &string};
+
+// extend lifetime, erase type, and wrap with `Erased`
+let erased = original.clone().into_erased();
+
+// store in a vec with erased values of other types, etc.
+/* ... */
+
+// restore the static type and true lifetime
+let restored = erased.restore::<S>().unwrap();
+# }
+```
+*/
 
 #[cfg(test)]
 pub mod tests;

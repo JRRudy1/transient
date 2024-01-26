@@ -1,17 +1,20 @@
-//! Defines safe wrappers for erasing and restoring transient types.
-//!
-//! This module defines the `Erased`, `ErasedRef`, and `ErasedMut` structs for
-//! wrapping owned values, shared references, and mutable references, respectively,
-//! that have been transmuted to `'static` and cast to `dyn Any`. While artificially
-//! extending lifetimes is typically very unsafe, each wrapper struct provides a
-//! safe interface to the falsely-`'static` value it wraps by restricting safe
-//! access to it until the *true* lifetime has been restored.
-//!
-//! In order to enforce this restriction, the safe public API does not expose the
-//! wrapped value directly, which in principle could be downcast and cloned to
-//! obtain a transient value with an unbounded lifetime. However, this restriction
-//! is lifted when the *true* lifetime is static, since use-after-free is no longer
-//! a concern.
+/*!
+Defines safe wrappers for erasing and restoring transient types.
+
+This module defines the `Erased`, `ErasedRef`, and `ErasedMut` structs for
+wrapping owned values, shared references, and mutable references, respectively,
+that have been transmuted to `'static` and cast to `dyn Any`. While artificially
+extending lifetimes is typically very unsafe, each wrapper struct provides a
+safe interface to the falsely-`'static` value it wraps by restricting safe
+access to it until the *true* lifetime has been restored.
+
+In order to enforce this restriction, the safe public API does not expose the
+wrapped value directly, which in principle could be downcast and cloned to
+obtain a transient value with an unbounded lifetime. However, this restriction
+is lifted when the *true* lifetime is static, since use-after-free is no longer
+a concern.
+*/
+
 use std::{
     any::{Any, TypeId}, 
     marker::PhantomData
@@ -19,12 +22,12 @@ use std::{
 use super::MakeStatic;
 
 
-/// Safely wraps an owned potentially non-static value that has been transmuted
+/// Safely wraps a potentially non-static value that has been transmuted
 /// to `'static` and cast to `dyn Any`.
 ///
 /// This struct provides a safe interface for erasing/restoring such a type by
-/// restricting access to the falsely-static object and ensuring that it cannot
-/// be used after its true lifetime. To enforce this condition, the safe public
+/// restricting access to the falsely-`'static` object and ensuring that it cannot
+/// be used after its *true* lifetime. To enforce this condition, the safe public
 /// API does not expose the wrapped value directly, which in principle could be
 /// downcast and cloned to obtain a transient value with an unbounded lifetime.
 #[derive(Debug)]
@@ -84,13 +87,13 @@ impl Erased<'static> {
 /// that has been transmuted to `'static` and cast to `dyn Any`.
 ///
 /// This struct provides a safe interface for erasing/restoring such a type by
-/// restricting access to the falsely-static object and ensuring that it cannot
-/// be used after its true lifetime. To enforce this condition, the safe public
+/// restricting access to the falsely-`'static` object and ensuring that it cannot
+/// be used after its *true* lifetime. To enforce this condition, the safe public
 /// API does not expose the wrapped value directly, which in principle could be
 /// downcast and cloned to obtain a transient value with an unbounded lifetime.
 #[derive(Debug, Clone, Copy)]
 pub struct ErasedRef<'borrow, 'src: 'borrow>(
-    &'borrow dyn Any,  // DO NOT EXPOSE!
+    &'borrow dyn Any, // DO NOT EXPOSE!
     PhantomData<&'src ()>,
 );
 
@@ -130,13 +133,13 @@ impl<'borrow> ErasedRef<'borrow, 'static> {
 /// that has been transmuted to `'static` and cast to `dyn Any`.
 ///
 /// This struct provides a safe interface for erasing/restoring such a type by
-/// restricting access to the falsely-static object and ensuring that it cannot
-/// be used after its true lifetime. To enforce this condition, the safe public
+/// restricting access to the falsely-`'static` object and ensuring that it cannot
+/// be used after its *true* lifetime. To enforce this condition, the safe public
 /// API does not expose the wrapped value directly, which in principle could be
 /// downcast and cloned to obtain a transient value with an unbounded lifetime.
 #[derive(Debug)]
 pub struct ErasedMut<'borrow, 'src: 'borrow>(
-    &'borrow mut dyn Any,
+    &'borrow mut dyn Any, // DO NOT EXPOSE!
     PhantomData<&'src ()>,
 );
 
