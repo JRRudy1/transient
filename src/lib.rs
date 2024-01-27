@@ -1,105 +1,188 @@
 /*!
-This crate provides a mechanism for safely casting non-static data to/from `dyn Any`.
+This crate extends the dynamic typing mechanism provided by the [`std::any::Any`]
+trait to add support for types with non-`'static` lifetimes.
 
+# Introduction
 
-## Introduction
-
-The standard library's `Any` trait is used to emulate dynamic typing within Rust,
-and is extremely useful in cases where implementing a statically typed solution
-would be inconvenient, if not impossible. Examples include storing heterogeneous
-values in a `Vec`, or eliminating generic parameters from a type so that it can be
-used in object-safe trait methods.
+The standard library's [`Any`] trait is used to emulate dynamic typing within
+Rust, and is extremely useful in cases where implementing a statically typed
+solution would be inconvenient, if not impossible. Examples include storing
+heterogeneous values in a `Vec`, or eliminating generic parameters from a
+type so that it can be used in object-safe trait methods.
 
 However, a significant limitation of the `Any` trait is its `'static` lifetime
 bound, which prevents it from being used for types containing any non-`'static`
-references. This bound eliminates many potential use-cases, and can force users
-to sacrifice performance by cloning data that could be borrowed in others.
+references. This restriction eliminates many potential use-cases, and in others
+it can force users to sacrifice performance by cloning data that could otherwise
+be borrowed.
 
-This crate aims to circumvent this limitation through careful use of unsafe
-code hidden behind a safe abstraction, so that type-erasure may be applied
-to transient (i.e. non-`'static`) data.
+This crate aims to circumvent this limitation through careful use of `unsafe` code
+hidden behind a safe abstraction, so that type-erasure may be applied to transient
+(i.e. non-`'static`) data. This is achieved using the [`MakeStatic`] and
+[`TransientAny`] traits, the [`Erased`], [`ErasedRef`], and [`ErasedMut`] wrapper
+structs, and the [`TransientAny` derive macro] that helps make the functionality
+in this crate painless to utilize.
 
+# Approach
 
-## Approach
+The following steps are meant to illustrate what the crate does behind-the-scenes
+to safely implement its functionality; skip to [the next section](#usage) if you
+don't care and just want to learn about using it.
 
-The approach can be summarized as follows:
+1. The [`MakeStatic<'src>`] trait is implemented/derived for a type, which is a
+simple but `unsafe` trait that allows a transient type (or a reference to such)
+with minimum lifetime bound `'src` to be transmuted into a `'static` version of
+the same type. On its own, this operation would be extremely `unsafe`, but the
+following steps will make use of the trait's `'src` lifetime parameter to build
+a safe abstraction.
 
-1. The `MakeStatic<'src>` trait is implemented/derived for a type, which is a simple
-but `unsafe` trait that allows a transient type (or a reference to such) with minimum
-lifetime bound `'src` to be transmuted into a `'static` version of the same type.
-On its own, this operation would be extremely `unsafe`, but the following steps
-will make use of the trait's `'src` lifetime parameter to build a safe abstraction.
+2. The `'static`-ified type is then *erased* by casting to [`dyn Any`] (behind
+a box or reference), which is now possible thanks to the falsely-`'static`
+lifetime. However, using this object directly is still dangerous as there is
+no lifetime bounding access to the borrowed data it contains.
 
-2. The `'static`-ified type is then "erased" by casting to `dyn Any` (behind a box
-or reference), which is now possible thanks to the falsely-`'static` lifetime.
-However, using this object directly is still `unsafe`, as there is no lifetime
-bounding access to any borrowed data it contains.
+3. The erased value (or shared/mutable reference) is then wrapped in an [`Erased`]
+(or [`ErasedRef`]/[`ErasedMut`]) struct, which uses [`PhantomData`] to bind the
+value to its true lifetime `'src` and ensure that the borrowed data remains valid
+for the lifetime of the wrapper. Furthermore, the API of this wrapper struct is
+designed such that the wrapped value is *not* exposed in any safe public methods,
+and cannot be extracted or referenced directly.
 
-3. The erased value (or shared/mutable reference) is then wrapped in an `Erased`
-(or `ErasedRef`/`ErasedMut`) struct, which binds the value to the true lifetime
-`'src` using `PhantomData` to ensure that the borrowed data remains valid for
-the lifetime of the wrapper. The API of this wrapper struct is designed such
-that the wrapped value is not exposed in any safe public methods, and cannot be
-extracted or referenced directly.
+4. Finally, each wrapper provides a `restore<T>` method that can be called to
+extract the value (or reference) in its original form. This method attempts to
+downcast the erased value as the given type `T`, and then restores the original
+lifetime `'src` before returning it to the caller.
 
-4. Finally, the `restore` method can be called to extract the value (or reference)
-in its original form. This method attempts to downcast the erased value as the
-given type, and then restores the original lifetime `'src` by calling another
-method on the `MakeStatic` trait.
+# Usage
+After implementing the [`MakeStatic`] trait for a type (either manually or
+using the [`TransientAny` derive macro]), the primary entry point for utilizing
+the functionality in this crate is provided by the [`TransientAny` trait].
+This trait is implemented automatically by a blanket `impl` for all
+`T: MakeStatic<'src>`, and exposes safe methods for erasing the type of an owned
+value ([`erase`]), shared reference ([`erase_ref`]), or mutable reference
+([`erase_mut`]). Each of these methods performs the necessary steps to extend
+the value's lifetime, erase its type, and place it in a wrapper that maintains
+safety by binding to the original lifetime and restricting access to the
+unbounded inner value.
 
+When dynamic typing is no longer needed, the wrapper's `restore` method
+([`Erased::restore`], [`ErasedRef::restore`], or [`ErasedMut::restore`])
+can be called to move out of the wrapper and return the inner value/reference
+with its static type and lifetime bounds restored.
 
-## Usage
+# Examples
 
-After deriving or implementing the `MakeStatic` trait for a type, the primary
-entry point for utilizing the functionality in this crate is provided by the
-`TransientAny` trait, which has a blanket `impl` for all `T: MakeStatic<'src>`.
-This trait exposes safe methods for erasing the type of an owned value, shared
-reference, or mutable reference, each of which performs the necessary steps to
-extend the value's lifetime, erase its type, and then place it in a wrapper to
-keep it safe.
-
-## Example
-
+The following code block provides a basic example of using this crate to
+utilize `Any`-like dynamic typing for a non-`'static` struct. Explicit type
+annotations will be included for clarity, wherein the anonymous lifetime
+`'_` will be used to represent the `'src` lifetime.
 ```
-use transient_any::TransientAny;
+use transient_any::{TransientAny, Erased};
 
 #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
 struct S<'a> {
     value: &'a String,
 }
-# fn main() {
+
+// Create a `String` that the `S` struct will borrow. The lifetime of this
+// string ultimately defines the `'src` lifetime, and all references to it
+// must be dropped before it goes out of scope.
 let string = "qwer".to_string();
 
-// create a "transient" struct that borrows data
-let original = S{value: &string};
+// Create a "transient" struct that borrows the string:
+let original: S<'_> = S{value: &string};
 
-// extend lifetime, erase type, and wrap with `Erased`
-let erased = original.clone().into_erased();
+// Extend lifetime, erase type, and wrap with an `Erased` struct to preserve
+// and enforce its lifetime bound:
+let erased: Erased<'_> = original.erase();
 
-// store in a vec with erased values of other types, etc.
-/* ... */
-
-// restore the static type and true lifetime
-let restored = erased.restore::<S>().unwrap();
-# }
+// We can now do dynamically typed things with it, such as storing it in a
+// `Vec` with other erased types:
+let _ = vec![erased, 4.erase(), Box::new(2.0).erase()];
 ```
+
+```compile_fail
+# use transient_any::TransientAny;
+# #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+# struct S<'a> {value: &'a String} let string = "qwer".to_string();
+# let original = S{value: &string}; let erased = original.erase();
+// Even though the `S` struct's lifetime has been transmuted to `'static`,
+// the wrapper keeps it bound to the true lifetime and the borrow checker
+// would reject the next line to protect us from use-after-free:
+drop(string);
+# let _ = erased.clone();  // needed to prevent early drop
+```
+
+```
+# use transient_any::{TransientAny, Erased};
+# #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+# struct S<'a> {value: &'a String} let string = "qwer".to_string();
+# let original = S{value: &string}; let erased = original.clone().erase();
+// Restore the static type and lifetime of the transient struct:
+let restored: S<'_> = erased.restore().unwrap();
+assert_eq!(&restored, &original);
+```
+
+```compile_fail
+# use transient_any::TransientAny;
+# #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+# struct S<'a> {value: &'a String} let string = "qwer".to_string();
+# let original = S{value: &string}; let erased = original.erase();
+# let restored: S = erased.restore().unwrap();
+// Now that the true lifetime of the inner value has been restored, the
+// borrow checker will continue to protect us and reject the next line:
+drop(string);
+# let _ = restored.clone();  // needed to prevent early drop
+```
+
+```
+# use transient_any::{TransientAny, Erased};
+# #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+# struct S<'a> {value: &'a String} let string = "qwer".to_string();
+# let original = S{value: &string}; let erased = original.erase();
+# let restored: S = erased.restore().unwrap();
+// However, once `restored` gets dropped the borrow is released and we
+// are free to drop or move the string again!
+drop(restored);
+drop(string);
+```
+
+[`PhantomData`]: std::marker::PhantomData
+[`Any`]: std::any::Any
+[`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
+[`MakeStatic`]: ../transient_any/trait.MakeStatic.html
+[`MakeStatic<'src>`]: ../transient_any/trait.MakeStatic.html
+[`TransientAny` derive macro]: transient_any_derive::TransientAny
+[`TransientAny` trait]: TransientAny
+[`erase`]: TransientAny::erase
+[`erase_ref`]: TransientAny::erase_ref
+[`erase_mut`]: TransientAny::erase_mut
 */
 
 #[cfg(test)]
 pub mod tests;
 
-mod erased;
+pub mod erased;
+#[doc(inline)]
 pub use erased::{Erased, ErasedRef, ErasedMut};
 
 #[cfg(feature = "derive")]
 pub use transient_any_derive::TransientAny;
 
 
-/// Trait providing safe operations on `MakeStatic`  types.
+/// Trait providing safe operations on [`MakeStatic`] types, including
+/// [`erase`], [`erase_ref`], and [`erase_mut`].
 ///
-/// This trait has a blanket impl for all `T: MakeStatic`, and cannot be
-/// implemented directly.
+/// This trait has a blanket `impl` for all `T: MakeStatic`, and cannot be
+/// implemented directly. Instead, implement the `MakeStatic` trait (e.g.
+/// using the [`TransientAny` derive macro]).
+///
+/// [`erase`]: TransientAny::erase
+/// [`erase_ref`]: TransientAny::erase_ref
+/// [`erase_mut`]: TransientAny::erase_mut
+/// [`TransientAny` derive macro]: transient_any_derive::TransientAny
 pub trait TransientAny<'src>: MakeStatic<'src> {
+
     /// Erase the value's type and return a wrapper for safely restoring it.
     fn erase(self) -> Erased<'src> {
         Erased::new(self)
@@ -114,65 +197,76 @@ pub trait TransientAny<'src>: MakeStatic<'src> {
     where 'src: 'borrow {
         ErasedMut::new(self)
     }
-    fn type_id() -> std::any::TypeId {
-        Self::static_type_id()
+    /// Get the [TypeId][`std::any::TypeId`] of the `'static`-ified type.
+    fn static_type_id() -> std::any::TypeId {
+        std::any::TypeId::of::<Self::Static>()
     }
 }
 impl<'src, T: MakeStatic<'src>> TransientAny<'src> for T {}
 
 
-/// An unsafe trait for converting the lifetime parameters of a type to
-/// (and from) `'static` so that it can be cast to `dyn Any`.
+/// Unsafe trait for converting the lifetime parameters of a type to (and from)
+/// `'static` so that it can be cast to `dyn Any`. This trait can be derived
+/// using the [`TransientAny` derive macro][transient_any_derive::TransientAny].
 ///
-/// Only the associated type `Static` must be implemented, which must
-/// be the same as `Self` but with all lifetime parameters replaced by
-/// 'static. For example, a struct `S<'a, 'b, T>` should define the type
-/// as `S<'static, 'static, T>`. For structs with zero or one lifetime
-/// parameters, the included derive macro may be used to correctly
-/// implement this trait.
+/// Only the associated type `Static` must be implemented, which must be the
+/// same as `Self` but with all lifetime parameters replaced by `'static`.
+/// For example, a struct `S<'a, 'b, T>` should define the type as
+/// `S<'static, 'static, T>`.
 ///
-/// SAFETY: `Self::Static` must be a static version of `Self` with the
-/// same layout, and `'src` must match the shortest lifetime parameter
-/// of the implementing struct.
+/// For structs with zero or one lifetime parameters, the included derive
+/// macro [`TransientAny`][transient_any_derive::TransientAny] can be used to
+/// automatically implement this trait. For structs with multiple lifetime
+/// parameters the trait can easily implemented by hand, but care must be
+/// taken to ensure that the struct's shortest lifetime is used as the
+/// lifetime parameter for the trait.
+///
+/// # SAFETY
+/// The associated type [`Static`][Self::Static] must be a static version
+/// of `Self` with the same layout, and the trait's lifetime parameter
+/// `'src` must match the shortest lifetime parameter of the implementing
+/// struct.
 pub unsafe trait MakeStatic<'src>: Sized + 'src {
     type Static: Sized + 'static;
 
-    fn static_type_id() -> std::any::TypeId {
-        std::any::TypeId::of::<Self::Static>()
-    }
-
-    /// SAFETY: the returned value must not be used after `'src`; in
-    /// particular, it must not be cloned to produce an owned value
-    /// borrowing data with a falsely 'static lifetime.
+    /// # SAFETY
+    /// The returned value must not be used after `'src`; in particular it must
+    /// not be cloned to produce an owned value borrowing data with an unbounded
+    /// lifetime.
     unsafe fn make_static_owned(self: Box<Self>) -> Box<Self::Static> {
         std::mem::transmute(self)
     }
 
-    /// SAFETY: the given value must be valid for `'src`
+    /// # SAFETY
+    /// The given value must be valid for `'src`.
     unsafe fn from_static_owned(value: Box<Self::Static>) -> Box<Self> {
         std::mem::transmute(value)
     }
 
-    /// SAFETY: the returned value must not be used after `'src`; in
-    /// particular, it must not be cloned to produce an owned value
-    /// borrowing data with a falsely 'static lifetime.
+    /// # SAFETY
+    /// The pointee of the returned reference must not be accessed after
+    /// `'src`; in particular, the reference must not be cloned to produce
+    /// an owned value borrowing data with an unbounded lifetime.
     unsafe fn make_static_ref(&self) -> &Self::Static {
         std::mem::transmute(self)
     }
 
-    /// SAFETY: the given value must be valid for `'src`
+    /// # SAFETY
+    /// The pointee of the given reference must be valid for `'src`.
     unsafe fn from_static_ref<'b>(value: &'b Self::Static) -> &'b Self {
         std::mem::transmute(value)
     }
 
-    /// SAFETY: the returned value must not be used after `'src`; in
-    /// particular, it must not be cloned to produce an owned value
-    /// borrowing data with a falsely 'static lifetime.
+    /// # SAFETY
+    /// The pointee of the returned reference must not be accessed after
+    /// `'src`; in particular, the reference must not be cloned to produce
+    /// an owned value borrowing data with an unbounded lifetime.
     unsafe fn make_static_mut(&mut self) -> &mut Self::Static {
         std::mem::transmute(self)
     }
 
-    /// SAFETY: the given value must be valid for `'src`
+    /// # SAFETY
+    /// The pointee of the given reference must be valid for `'src`.
     unsafe fn from_static_mut<'b>(value: &'b mut Self::Static) -> &'b mut Self {
         std::mem::transmute(value)
     }
