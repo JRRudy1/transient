@@ -15,8 +15,8 @@ mod basic {
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
         let original = S{value: &value};
-        let erased = original.clone().into_erased();
-        assert_eq!(erased.type_id(), S::type_id());
+        let erased = original.clone().erase();
+        assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap();
         assert_eq!(restored, original);
     }
@@ -46,7 +46,7 @@ mod generics {
     use crate::{MakeStatic, TransientAny};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    struct S<'a, T: 'static> {
+    struct S<'a, T> {
         value: &'a T,
     }
     unsafe impl<'a, T: 'static> MakeStatic<'a> for S<'a, T> {
@@ -59,8 +59,8 @@ mod generics {
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
         let original = SS{value: &value};
-        let erased = original.clone().into_erased();
-        assert_eq!(erased.type_id(), SS::type_id());
+        let erased = original.clone().erase();
+        assert_eq!(erased.type_id(), SS::static_type_id());
         let restored = erased.restore::<SS>().unwrap();
         assert_eq!(restored, original);
     }
@@ -130,8 +130,8 @@ mod derived {
     pub fn test_transient() {
         let string = "qwer".to_string();
         let original = SS{value: &string};
-        let erased = original.clone().into_erased();
-        assert_eq!(erased.type_id(), SS::type_id());
+        let erased = original.clone().erase();
+        assert_eq!(erased.type_id(), SS::static_type_id());
         let restored = erased.restore::<SS>().unwrap();
         assert_eq!(restored, original);
     }
@@ -145,8 +145,8 @@ mod derived {
     #[test]
     pub fn test_static() {
         let original = SS2{value: "qwer".to_string()};
-        let erased = original.clone().into_erased();
-        assert_eq!(erased.type_id(), SS2::type_id());
+        let erased = original.clone().erase();
+        assert_eq!(erased.type_id(), SS2::static_type_id());
         let restored = erased.restore::<SS2>().unwrap();
         assert_eq!(restored, original);
     }
