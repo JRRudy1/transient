@@ -24,8 +24,8 @@ mod basic {
     pub(super) fn test_ref() { // single lifetime (derived `MakeStatic` impl)
         let value = "qwer".to_string();
         let original = S{value: &value};
-        let erased = original.as_erased();
-        assert_eq!(erased.type_id(), S::type_id());
+        let erased = original.erase_ref();
+        assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -33,8 +33,8 @@ mod basic {
     pub(super) fn test_mut() {
         let value = "qwer".to_string();
         let mut original = S{value: &value};
-        let erased = original.as_erased_mut();
-        assert_eq!(erased.type_id(), S::type_id());
+        let erased = original.erase_mut();
+        assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -69,8 +69,8 @@ mod generics {
     pub(super) fn test_ref() {
         let value = "qwer".to_string();
         let original = SS{value: &value};
-        let erased = original.as_erased();
-        assert_eq!(erased.type_id(), SS::type_id());
+        let erased = original.erase_ref();
+        assert_eq!(erased.type_id(), SS::static_type_id());
         let restored = erased.restore::<SS>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -79,8 +79,8 @@ mod generics {
     pub(super) fn test_mut() {
         let value = "qwer".to_string();
         let mut original = SS{value: &value};
-        let erased = original.as_erased_mut();
-        assert_eq!(erased.type_id(), SS::type_id());
+        let erased = original.erase_mut();
+        assert_eq!(erased.type_id(), SS::static_type_id());
         let restored = erased.restore::<SS>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -105,8 +105,8 @@ mod multi_lifetime {
     pub(super) fn test_ref() {
         let (short, long) = ("short".to_string(), "long".to_string());
         let original = S {short: &short, long: &long};
-        let erased = original.as_erased();
-        assert_eq!(erased.type_id(), S::type_id());
+        let erased = original.erase_ref();
+        assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap();
         assert_eq!(restored, &original);
     }

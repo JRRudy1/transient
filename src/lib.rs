@@ -101,16 +101,16 @@ pub use transient_any_derive::TransientAny;
 /// implemented directly.
 pub trait TransientAny<'src>: MakeStatic<'src> {
     /// Erase the value's type and return a wrapper for safely restoring it.
-    fn into_erased(self) -> Erased<'src> {
+    fn erase(self) -> Erased<'src> {
         Erased::new(self)
     }
     /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn as_erased<'borrow>(&'borrow self) -> ErasedRef<'borrow, 'src>
+    fn erase_ref<'borrow>(&'borrow self) -> ErasedRef<'borrow, 'src>
     where 'src: 'borrow {
         ErasedRef::new(self)
     }
     /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn as_erased_mut<'borrow>(&'borrow mut self) -> ErasedMut<'borrow, 'src>
+    fn erase_mut<'borrow>(&'borrow mut self) -> ErasedMut<'borrow, 'src>
     where 'src: 'borrow {
         ErasedMut::new(self)
     }
