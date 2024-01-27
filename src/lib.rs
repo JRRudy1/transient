@@ -177,3 +177,74 @@ pub unsafe trait MakeStatic<'src>: Sized + 'src {
         std::mem::transmute(value)
     }
 }
+
+
+macro_rules! impl_primatives {
+    ( $($ty:ty),* $(,)? ) => {
+        $(
+        unsafe impl MakeStatic<'static> for $ty {
+            type Static = $ty;
+        }
+        )*
+    }
+}
+macro_rules! impl_primative_refs {
+    ( $($ty:ty),* $(,)? ) => {
+        $(
+        unsafe impl<'a> MakeStatic<'a> for &'a $ty {
+            type Static = &'static $ty;
+        }
+        )*
+    }
+}
+macro_rules! impl_primative_muts {
+    ( $($ty:ty),* $(,)? ) => {
+        $(
+        unsafe impl<'a> MakeStatic<'a> for &'a mut $ty {
+            type Static = &'static mut $ty;
+        }
+        )*
+    }
+}
+
+
+impl_primatives!{
+    isize, i8, i16, i32, i64, usize, u8, u16, u32, u64, f32, f64,
+    String, Box<str>, &'static str,
+}
+impl_primative_refs!{
+    isize, i8, i16, i32, i64, usize, u8, u16, u32, u64, f32, f64,
+    String, Box<str>, &'static str,
+}
+impl_primative_muts!{
+    isize, i8, i16, i32, i64, usize, u8, u16, u32, u64, f32, f64,
+    String, Box<str>, &'static str,
+}
+
+unsafe impl<T: 'static> MakeStatic<'static> for Vec<T> {
+    type Static = Vec<T>;
+}
+unsafe impl<T: 'static> MakeStatic<'static> for Box<T> {
+    type Static = Box<T>;
+}
+unsafe impl<T: 'static> MakeStatic<'static> for Box<[T]> {
+    type Static = Box<[T]>;
+}
+unsafe impl<T: 'static> MakeStatic<'static> for Option<T> {
+    type Static = Option<T>;
+}
+unsafe impl<T: 'static, E: 'static> MakeStatic<'static> for Result<T, E> {
+    type Static = Result<T, E>;
+}
+
+unsafe impl MakeStatic<'static> for Box<dyn std::any::Any> {
+    type Static = Box<dyn std::any::Any>;
+}
+
+unsafe impl<'a> MakeStatic<'a> for &'a dyn std::any::Any {
+    type Static = &'static dyn std::any::Any;
+}
+
+unsafe impl<'a> MakeStatic<'a> for &'a mut dyn std::any::Any {
+    type Static = &'static mut dyn std::any::Any;
+}
