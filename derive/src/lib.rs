@@ -71,7 +71,8 @@ fn no_generics() -> Generics {
 struct Params {
     //                impl<'src, T> MakeStatic<'src> for Struct<'src, ...> where
     impl_: Generics,    // <---'                 |                  |        |
-    lifetime: Lifetime, // <---------------------'                  |        |
+    lifetime: Generics, // <---------------------'                  |        |
+    // lifetime: Lifetime, // <---------------------'                  |        |
     original: Generics, // <----------------------------------------'--------'
     //                type Static = Struct<'static, T>;
     static_: Generics,  // <--------------------'
@@ -84,20 +85,21 @@ impl Params {
         impl_: Generics,
         static_: Vec<GenericParam>
     ) -> Self {
+        let lifetime = parse_quote!(<#lifetime>);
         let static_: Generics = parse_quote!(<#(#static_,)*>);
         Params {lifetime, original, impl_,  static_}
     }
 
     fn empty() -> Self {
-        Params {
-            lifetime: static_lifetime(),
-            original: no_generics(),
-            impl_: no_generics(),
-            static_: no_generics(),
-        }
+        Params::new(
+            static_lifetime(),
+            no_generics(),
+            no_generics(),
+            vec![],
+        )
     }
 
-    fn lifetime(&self) -> &Lifetime {
+    fn trait_generics(&self) -> &Generics {
         &self.lifetime
     }
     fn impl_generics(&self) -> &Generics {
@@ -163,18 +165,17 @@ fn process_generics(generics: Generics) -> Result<Params> {
 
 
 fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
-
     let name = input.ident;
     let trait_ = trait_path();
 
     let params = process_generics(input.generics)?;
-    let lifetime = params.lifetime();
+    let trait_generics = params.trait_generics();
     let impl_generics = params.impl_generics();
     let (ty_generics, where_clause) = params.split_for_impl();
     let static_ty_generics = params.static_type_generics();
 
     let tokens = quote!(
-        unsafe impl #impl_generics #trait_ <#lifetime> for #name #ty_generics
+        unsafe impl #impl_generics #trait_ #trait_generics for #name #ty_generics
         #where_clause {
             type Static = #name #static_ty_generics;
         }
