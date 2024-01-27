@@ -222,10 +222,64 @@ impl<'src, T: MakeStatic<'src>> TransientAny<'src> for T {}
 /// lifetime parameter for the trait.
 ///
 /// # SAFETY
-/// The associated type [`Static`][Self::Static] must be a static version
-/// of `Self` with the same layout, and the trait's lifetime parameter
-/// `'src` must match the shortest lifetime parameter of the implementing
-/// struct.
+/// - The [`Static`][Self::Static] associated type should be the same as the
+/// `Self` type but with all lifetime parameters replaced by `'static`.
+/// - The trait's lifetime parameter `'src` must match the shortest lifetime
+/// parameter declared for the `impl` block.
+///
+/// # Examples
+/// For the simple case of a struct with a single lifetime parameter:
+/// ```
+/// use transient_any::MakeStatic;
+/// struct S<'a> {
+///     value: &'a str,
+/// }
+/// unsafe impl<'a> MakeStatic<'a> for S<'a> {
+///     type Static = S<'static>;
+/// }
+/// ```
+///
+/// Now consider a struct that borrows 2 string slices with independent
+/// lifetime parameters:
+/// ```
+/// struct TwoRefs<'a, 'b> {
+///     a: &'a str,
+///     b: &'b str,
+/// }
+/// ```
+/// For the `MakeStatic` implementation to be sound, a sufficient relationship
+/// between the lifetime parameters must be declared on the `impl` block so that
+/// a *minimum lifetime* can be unambiguously chosen to parameterize the trait.
+///
+/// There are three acceptable choices for the lifetime relationships in the
+/// `TwoRefs` struct declared above:
+/// ```
+/// # use transient_any::MakeStatic;
+/// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
+/// // 'b outlives 'a -> choose 'a for the trait
+/// unsafe impl<'a, 'b: 'a> MakeStatic<'a> for TwoRefs<'a, 'b> {
+///     type Static = TwoRefs<'static, 'static>;
+/// }
+/// ```
+/// ```
+/// # use transient_any::MakeStatic;
+/// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
+/// // 'a outlives 'b -> choose `b` for the trait
+/// unsafe impl<'b, 'a: 'b> MakeStatic<'b> for TwoRefs<'a, 'b> {
+///     type Static = TwoRefs<'static, 'static>;
+/// }
+/// ```
+/// ```
+/// # use transient_any::MakeStatic;
+/// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
+/// // 'a and 'b are equal -> no need to choose
+/// unsafe impl<'a> MakeStatic<'a> for TwoRefs<'a, 'a> {
+///     type Static = TwoRefs<'static, 'static>;
+/// }
+/// ```
+/// However, choosing either `'a` **or** `'b` for the trait without declaring
+/// bounds to justify it is *unsound* and may lead to undefined behaviour.
+///
 pub unsafe trait MakeStatic<'src>: Sized + 'src {
     type Static: Sized + 'static;
 
