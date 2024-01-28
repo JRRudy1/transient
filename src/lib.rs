@@ -18,9 +18,9 @@ be borrowed.
 
 This crate aims to circumvent this limitation through careful use of `unsafe` code
 hidden behind a safe abstraction, so that type-erasure may be applied to transient
-(i.e. non-`'static`) data. This is achieved using the [`MakeStatic`] and
-[`TransientAny`] traits, the [`Erased`], [`ErasedRef`], and [`ErasedMut`] wrapper
-structs, and the [`TransientAny` derive macro] that helps make the functionality
+(i.e. non-`'static`) data. This is achieved using the [`TransientAny`] trait, the
+[`Erased`], [`ErasedRef`], and [`ErasedMut`] wrapper structs, and the
+[`TransientAny` derive macro] that helps make the functionality
 in this crate painless to utilize.
 
 # Approach
@@ -29,7 +29,7 @@ The following steps are meant to illustrate what the crate does behind-the-scene
 to safely implement its functionality; skip to [the next section](#usage) if you
 don't care and just want to learn about using it.
 
-1. The [`MakeStatic<'src>`] trait is implemented/derived for a type, which is a
+1. The [`TransientAny<'src>`] trait is implemented/derived for a type, which is a
 simple but `unsafe` trait that allows a transient type (or a reference to such)
 with minimum lifetime bound `'src` to be transmuted into a `'static` version of
 the same type. On its own, this operation would be extremely `unsafe`, but the
@@ -54,21 +54,27 @@ downcast the erased value as the given type `T`, and then restores the original
 lifetime `'src` before returning it to the caller.
 
 # Usage
-After implementing the [`MakeStatic`] trait for a type (either manually or
-using the [`TransientAny` derive macro]), the primary entry point for utilizing
-the functionality in this crate is provided by the [`TransientAny` trait].
-This trait is implemented automatically by a blanket `impl` for all
-`T: MakeStatic<'src>`, and exposes safe methods for erasing the type of an owned
-value ([`erase`]), shared reference ([`erase_ref`]), or mutable reference
-([`erase_mut`]). Each of these methods performs the necessary steps to extend
-the value's lifetime, erase its type, and place it in a wrapper that maintains
-safety by binding to the original lifetime and restricting access to the
-unbounded inner value.
+First, the [`TransientAny`] trait is implemented for a type which may not have
+generic lifetime or type parameters. This trait is already implemented for many
+common foreign types, and can be easily implemented for custom types either by
+hand or using the [`TransientAny` derive macro].
+
+The trait's methods can then be called to safely erase a type by value ([`erase`]),
+shared reference ([`erase_ref`]), or mutable reference ([`erase_mut`]). These
+methods return the erased type wrapped in an [`Erased`], [`ErasedRef`], or
+[`ErasedMut`] struct that maintains safety by binding to the original lifetime
+and restricting access to the unbounded inner value it wraps.
+
+The type-erased wrapper can then be used in dynamically typed patterns like
+those enabled by the [`Any`] trait; but where `Box<dyn Any>` would be used
+to erase the type of an owned value with a necessarily `'static` lifetime,
+for example, you would instead use [`Erased<'a>`][`Erased`] and gain the
+freedom to erase transient types containing non-`'static` references.
 
 When dynamic typing is no longer needed, the wrapper's `restore` method
-([`Erased::restore`], [`ErasedRef::restore`], or [`ErasedMut::restore`])
-can be called to move out of the wrapper and return the inner value/reference
-with its static type and lifetime bounds restored.
+([`Erased::restore`], [`ErasedRef::restore`], or [`ErasedMut::restore`]) can
+be called to move out of the wrapper and return the inner value/reference with
+its static type and lifetime bounds restored.
 
 # Examples
 
@@ -76,7 +82,8 @@ The following code block provides a basic example of using this crate to
 utilize `Any`-like dynamic typing for a non-`'static` struct. Explicit type
 annotations will be included for clarity, wherein the anonymous lifetime
 `'_` will be used to represent the `'src` lifetime.
-```
+
+```rust
 use transient_any::{TransientAny, Erased};
 
 #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
@@ -113,7 +120,7 @@ drop(string);
 # let _ = erased.clone();  // needed to prevent early drop
 ```
 
-```
+```rust
 # use transient_any::{TransientAny, Erased};
 # #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
 # struct S<'a> {value: &'a String} let string = "qwer".to_string();
@@ -130,12 +137,12 @@ assert_eq!(&restored, &original);
 # let original = S{value: &string}; let erased = original.erase();
 # let restored: S = erased.restore().unwrap();
 // Now that the true lifetime of the inner value has been restored, the
-// borrow checker will continue to protect us and reject the next line:
+// borrow checker will continue to protect us by rejecting the next line:
 drop(string);
 # let _ = restored.clone();  // needed to prevent early drop
 ```
 
-```
+```rust
 # use transient_any::{TransientAny, Erased};
 # #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
 # struct S<'a> {value: &'a String} let string = "qwer".to_string();
@@ -150,179 +157,175 @@ drop(string);
 [`PhantomData`]: std::marker::PhantomData
 [`Any`]: std::any::Any
 [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
-[`MakeStatic`]: ../transient_any/trait.MakeStatic.html
-[`MakeStatic<'src>`]: ../transient_any/trait.MakeStatic.html
+[`TransientAny`]: ../transient_any/trait.TransientAny.html
+[`TransientAny<'src>`]: ../transient_any/trait.TransientAny.html
 [`TransientAny` derive macro]: transient_any_derive::TransientAny
 [`TransientAny` trait]: TransientAny
 [`erase`]: TransientAny::erase
 [`erase_ref`]: TransientAny::erase_ref
 [`erase_mut`]: TransientAny::erase_mut
 */
+#![warn(missing_docs)]
 
 #[cfg(test)]
 pub mod tests;
 
 pub mod erased;
+
 #[doc(inline)]
 pub use erased::{Erased, ErasedRef, ErasedMut};
 
 #[cfg(feature = "derive")]
 pub use transient_any_derive::TransientAny;
 
-
-/// Trait providing safe operations on [`MakeStatic`] types, including
-/// [`erase`], [`erase_ref`], and [`erase_mut`].
-///
-/// This trait has a blanket `impl` for all `T: MakeStatic`, and cannot be
-/// implemented directly. Instead, implement the `MakeStatic` trait (e.g.
-/// using the [`TransientAny` derive macro]).
-///
-/// [`erase`]: TransientAny::erase
-/// [`erase_ref`]: TransientAny::erase_ref
-/// [`erase_mut`]: TransientAny::erase_mut
-/// [`TransientAny` derive macro]: transient_any_derive::TransientAny
-pub trait TransientAny<'src>: MakeStatic<'src> {
-
-    /// Erase the value's type and return a wrapper for safely restoring it.
-    fn erase(self) -> Erased<'src> {
-        Erased::new(self)
-    }
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn erase_ref<'borrow>(&'borrow self) -> ErasedRef<'borrow, 'src>
-    where 'src: 'borrow {
-        ErasedRef::new(self)
-    }
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn erase_mut<'borrow>(&'borrow mut self) -> ErasedMut<'borrow, 'src>
-    where 'src: 'borrow {
-        ErasedMut::new(self)
-    }
-    /// Get the [TypeId][`std::any::TypeId`] of the `'static`-ified type.
-    fn static_type_id() -> std::any::TypeId {
-        std::any::TypeId::of::<Self::Static>()
-    }
-}
-impl<'src, T: MakeStatic<'src>> TransientAny<'src> for T {}
-
-
+// pub unsafe trait TransientAny<'src>: Sized + 'src {
+//     type Static: Sized + 'static;
 /// Unsafe trait for converting the lifetime parameters of a type to (and from)
 /// `'static` so that it can be cast to `dyn Any`. This trait can be derived
-/// using the [`TransientAny` derive macro][transient_any_derive::TransientAny].
+/// using the [`TransientAny` derive macro].
 ///
-/// Only the associated type `Static` must be implemented, which must be the
-/// same as `Self` but with all lifetime parameters replaced by `'static`.
-/// For example, a struct `S<'a, 'b, T>` should define the type as
-/// `S<'static, 'static, T>`.
 ///
-/// For structs with zero or one lifetime parameters, the included derive
-/// macro [`TransientAny`][transient_any_derive::TransientAny] can be used to
-/// automatically implement this trait. For structs with multiple lifetime
-/// parameters the trait can easily implemented by hand, but care must be
-/// taken to ensure that the struct's shortest lifetime is used as the
-/// lifetime parameter for the trait.
+/// Unsafe trait providing safe methods for erasing non-`'static` types.
+///
+/// The most important methods defined by this trait are [`erase`], [`erase_ref`],
+/// and [`erase_mut`]; these methods artificially extend the lifetime of a value
+/// (or shared/mutable reference) to `'static`, erase its type by casting it to
+/// [`dyn Any`], and then place it in an [`Erased`], [`ErasedRef`], or [`ErasedMut`]
+/// wrapper struct that provides a safe interface for inspecting and restoring it.
+/// Each wrapper struct upholds Rust's safety guarantees by binding to the type's
+/// original lifetime `'src`, and restricting safe access to it until the `restore`
+/// method ([`Erased::restore`], [`ErasedRef::restore`], or  [`ErasedMut::restore`])
+/// is called to downcast the type and restore its original lifetime.
+///
+/// This trait is marked as `unsafe` because it's lifetime parameter `'src` and
+/// associated type `Static` must be defined correctly for the functionality in
+/// this crate to be sound. The included [`TransientAny` derive macro] can be
+/// used to correctly implement this trait for any struct with at most **1**
+/// lifetime parameter (and any number of type parameters), and for structs with
+/// multiple lifetime parameters it is trivial to implement by hand (just be
+/// sure to carefully review the [#safety] section to ensure that the required
+/// invariants are upheld, and see the [#examples] section for further guidance).
 ///
 /// # SAFETY
 /// - The [`Static`][Self::Static] associated type should be the same as the
 /// `Self` type but with all lifetime parameters replaced by `'static`.
-/// - The trait's lifetime parameter `'src` must match the shortest lifetime
-/// parameter declared for the `impl` block.
+/// - The trait's lifetime parameter `'src` must match the *minimum* lifetime
+/// parameter declared for the `impl` block, and sufficient bounds must be
+/// placed on the lifetime parameters to make this choice unambiguous.
 ///
 /// # Examples
-/// For the simple case of a struct with a single lifetime parameter:
+/// ```text
+/// The following examples demonstrate how to correctly implement this trait. For
+/// practical usage examples, see the [crate documentation][crate#examples].
 /// ```
-/// use transient_any::MakeStatic;
+/// The simplest case of implementing this trait is for a struct that is already
+/// `'static` (i.e. it only contains owned data and/or `'static` references. For
+/// such a struct, the lifetime parameter on the trait can also be `'static` and
+/// the `Static` associated type can just be `Self`. Of course, this crate would
+/// not be necessary in this case (and it is not worth showing a concrete example),
+/// but it is still worth mentioning that `'static` types are indeed supported.
+///
+/// The next simplest case would be a struct with a single lifetime parameter
+/// and no generic type parameters:
+/// ```
 /// struct S<'a> {
 ///     value: &'a str,
 /// }
-/// unsafe impl<'a> MakeStatic<'a> for S<'a> {
+/// // This could also be derived
+/// unsafe impl<'a> transient_any::TransientAny<'a> for S<'a> {
 ///     type Static = S<'static>;
 /// }
 /// ```
 ///
+/// Generic type parameters are also supported; the only difference for
+/// implementing such a type is that the borrow checker will require that
+/// all of the type parameters on the impl block have a `'static` lifetime
+/// bound. Of course, the generics types themselves may still be borrowed
+/// with non-`'static` lifetimes, which is the whole point of this crate.
+/// ```
+/// struct S<'a, T> {
+///     value: &'a T,
+/// }
+/// // This could also be derived. Note that this impl does not apply when
+/// // `T` itself is a transient type such as `&'b str`
+/// unsafe impl<'a, T: 'static> transient_any::TransientAny<'a> for S<'a, T> {
+///     type Static = S<'static, T>;
+/// }
+/// ```
+///
 /// Now consider a struct that borrows 2 string slices with independent
-/// lifetime parameters:
+/// lifetime parameters (which is currently not supported by the derive
+/// macro):
 /// ```
 /// struct TwoRefs<'a, 'b> {
 ///     a: &'a str,
 ///     b: &'b str,
 /// }
 /// ```
-/// For the `MakeStatic` implementation to be sound, a sufficient relationship
+/// For the `TransientAny` implementation to be sound, a sufficient relationship
 /// between the lifetime parameters must be declared on the `impl` block so that
 /// a *minimum lifetime* can be unambiguously chosen to parameterize the trait.
 ///
 /// There are three acceptable choices for the lifetime relationships in the
 /// `TwoRefs` struct declared above:
 /// ```
-/// # use transient_any::MakeStatic;
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'b outlives 'a -> choose 'a for the trait
-/// unsafe impl<'a, 'b: 'a> MakeStatic<'a> for TwoRefs<'a, 'b> {
+/// unsafe impl<'a, 'b: 'a> transient_any::TransientAny<'a> for TwoRefs<'a, 'b> {
 ///     type Static = TwoRefs<'static, 'static>;
 /// }
 /// ```
 /// ```
-/// # use transient_any::MakeStatic;
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'a outlives 'b -> choose `b` for the trait
-/// unsafe impl<'b, 'a: 'b> MakeStatic<'b> for TwoRefs<'a, 'b> {
+/// unsafe impl<'b, 'a: 'b> transient_any::TransientAny<'b> for TwoRefs<'a, 'b> {
 ///     type Static = TwoRefs<'static, 'static>;
 /// }
 /// ```
 /// ```
-/// # use transient_any::MakeStatic;
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'a and 'b are equal -> no need to choose
-/// unsafe impl<'a> MakeStatic<'a> for TwoRefs<'a, 'a> {
+/// unsafe impl<'a> transient_any::TransientAny<'a> for TwoRefs<'a, 'a> {
 ///     type Static = TwoRefs<'static, 'static>;
 /// }
 /// ```
 /// However, choosing either `'a` **or** `'b` for the trait without declaring
-/// bounds to justify it is *unsound* and may lead to undefined behaviour.
+/// bounds to justify the decision is *unsound* and may lead to undefined
+/// behaviour.
 ///
-pub unsafe trait MakeStatic<'src>: Sized + 'src {
+/// [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
+/// [`Erased`]: Erased
+/// [`ErasedRef`]: ErasedRef
+/// [`ErasedMut`]: ErasedMut
+/// [`erase`]: TransientAny::erase
+/// [`erase_ref`]: TransientAny::erase_ref
+/// [`erase_mut`]: TransientAny::erase_mut
+/// [`TransientAny` derive macro]: transient_any_derive::TransientAny
+pub unsafe trait TransientAny<'src>: Sized + 'src  {
+
+    /// Same as `Self` but with all lifetime parameters replaced by `'static`.
     type Static: Sized + 'static;
 
-    /// # SAFETY
-    /// The returned value must not be used after `'src`; in particular it must
-    /// not be cloned to produce an owned value borrowing data with an unbounded
-    /// lifetime.
-    unsafe fn make_static_owned(self: Box<Self>) -> Box<Self::Static> {
-        std::mem::transmute(self)
+    /// Erase the value's type and return a wrapper for safely restoring it.
+    fn erase(self) -> Erased<'src> {
+        Erased::new(self)
     }
 
-    /// # SAFETY
-    /// The given value must be valid for `'src`.
-    unsafe fn from_static_owned(value: Box<Self::Static>) -> Box<Self> {
-        std::mem::transmute(value)
+    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
+    fn erase_ref<'borrow>(&'borrow self) -> ErasedRef<'borrow, 'src>
+    where 'src: 'borrow {
+        ErasedRef::new(self)
     }
 
-    /// # SAFETY
-    /// The pointee of the returned reference must not be accessed after
-    /// `'src`; in particular, the reference must not be cloned to produce
-    /// an owned value borrowing data with an unbounded lifetime.
-    unsafe fn make_static_ref(&self) -> &Self::Static {
-        std::mem::transmute(self)
+    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
+    fn erase_mut<'borrow>(&'borrow mut self) -> ErasedMut<'borrow, 'src>
+    where 'src: 'borrow {
+        ErasedMut::new(self)
     }
 
-    /// # SAFETY
-    /// The pointee of the given reference must be valid for `'src`.
-    unsafe fn from_static_ref<'b>(value: &'b Self::Static) -> &'b Self {
-        std::mem::transmute(value)
-    }
-
-    /// # SAFETY
-    /// The pointee of the returned reference must not be accessed after
-    /// `'src`; in particular, the reference must not be cloned to produce
-    /// an owned value borrowing data with an unbounded lifetime.
-    unsafe fn make_static_mut(&mut self) -> &mut Self::Static {
-        std::mem::transmute(self)
-    }
-
-    /// # SAFETY
-    /// The pointee of the given reference must be valid for `'src`.
-    unsafe fn from_static_mut<'b>(value: &'b mut Self::Static) -> &'b mut Self {
-        std::mem::transmute(value)
+    /// Get the [TypeId][`std::any::TypeId`] of the `'static`-ified type.
+    fn static_type_id() -> std::any::TypeId {
+        std::any::TypeId::of::<Self::Static>()
     }
 }
 
@@ -330,7 +333,7 @@ pub unsafe trait MakeStatic<'src>: Sized + 'src {
 macro_rules! impl_primatives {
     ( $($ty:ty),* $(,)? ) => {
         $(
-        unsafe impl MakeStatic<'static> for $ty {
+        unsafe impl TransientAny<'static> for $ty {
             type Static = $ty;
         }
         )*
@@ -339,7 +342,7 @@ macro_rules! impl_primatives {
 macro_rules! impl_primative_refs {
     ( $($ty:ty),* $(,)? ) => {
         $(
-        unsafe impl<'a> MakeStatic<'a> for &'a $ty {
+        unsafe impl<'a> TransientAny<'a> for &'a $ty {
             type Static = &'static $ty;
         }
         )*
@@ -348,7 +351,7 @@ macro_rules! impl_primative_refs {
 macro_rules! impl_primative_muts {
     ( $($ty:ty),* $(,)? ) => {
         $(
-        unsafe impl<'a> MakeStatic<'a> for &'a mut $ty {
+        unsafe impl<'a> TransientAny<'a> for &'a mut $ty {
             type Static = &'static mut $ty;
         }
         )*
@@ -369,30 +372,28 @@ impl_primative_muts!{
     String, Box<str>, &'static str,
 }
 
-unsafe impl<T: 'static> MakeStatic<'static> for Vec<T> {
+unsafe impl<T: 'static> TransientAny<'static> for Vec<T> {
     type Static = Vec<T>;
 }
-unsafe impl<T: 'static> MakeStatic<'static> for Box<T> {
+unsafe impl<T: 'static> TransientAny<'static> for Box<T> {
     type Static = Box<T>;
 }
-unsafe impl<T: 'static> MakeStatic<'static> for Box<[T]> {
+unsafe impl<T: 'static> TransientAny<'static> for Box<[T]> {
     type Static = Box<[T]>;
 }
-unsafe impl<T: 'static> MakeStatic<'static> for Option<T> {
+unsafe impl<T: 'static> TransientAny<'static> for Option<T> {
     type Static = Option<T>;
 }
-unsafe impl<T: 'static, E: 'static> MakeStatic<'static> for Result<T, E> {
+unsafe impl<T: 'static, E: 'static> TransientAny<'static> for Result<T, E> {
     type Static = Result<T, E>;
 }
 
-unsafe impl MakeStatic<'static> for Box<dyn std::any::Any> {
+unsafe impl TransientAny<'static> for Box<dyn std::any::Any> {
     type Static = Box<dyn std::any::Any>;
 }
-
-unsafe impl<'a> MakeStatic<'a> for &'a dyn std::any::Any {
+unsafe impl<'a> TransientAny<'a> for &'a dyn std::any::Any {
     type Static = &'static dyn std::any::Any;
 }
-
-unsafe impl<'a> MakeStatic<'a> for &'a mut dyn std::any::Any {
+unsafe impl<'a> TransientAny<'a> for &'a mut dyn std::any::Any {
     type Static = &'static mut dyn std::any::Any;
 }

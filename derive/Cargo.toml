@@ -6,11 +6,11 @@ autotests = false
 
 [lib]
 proc-macro = true
-doctest = false
+doctest = true
 
 [[test]]
 name = "tests"
-path = "tests/progress.rs"
+path = "tests/test_derive.rs"
 
 [dev-dependencies]
 trybuild = { version = "1.0.49", features = ["diff"] }

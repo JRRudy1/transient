@@ -1,13 +1,13 @@
 
 /// Tests for a simple struct with no generic parameters.
 mod basic {
-    use crate::{MakeStatic, TransientAny};
+    use crate::{TransientAny};
     
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
         value: &'a String
     }
-    unsafe impl<'a> MakeStatic<'a> for S<'a> {
+    unsafe impl<'a> TransientAny<'a> for S<'a> {
         type Static = S<'static>;
     }
 
@@ -21,7 +21,7 @@ mod basic {
         assert_eq!(restored, original);
     }
     #[test]
-    pub(super) fn test_ref() { // single lifetime (derived `MakeStatic` impl)
+    pub(super) fn test_ref() { // single lifetime (derived `TransientAny` impl)
         let value = "qwer".to_string();
         let original = S{value: &value};
         let erased = original.erase_ref();
@@ -43,13 +43,13 @@ mod basic {
 
 /// Tests for a struct with generic parameters.
 mod generics {
-    use crate::{MakeStatic, TransientAny};
+    use crate::TransientAny;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
         value: &'a T,
     }
-    unsafe impl<'a, T: 'static> MakeStatic<'a> for S<'a, T> {
+    unsafe impl<'a, T: 'static> TransientAny<'a> for S<'a, T> {
         type Static = S<'static, T>;
     }
 
@@ -89,7 +89,7 @@ mod generics {
 
 /// Tests for a struct with more than one lifetime parameter.
 mod multi_lifetime {
-    use crate::{MakeStatic, TransientAny};
+    use crate::TransientAny;
 
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,7 +97,7 @@ mod multi_lifetime {
         short: &'a String,
         long: &'b String,
     }
-    unsafe impl<'a, 'b: 'a> MakeStatic<'a> for S<'a, 'b> {
+    unsafe impl<'a, 'b: 'a> TransientAny<'a> for S<'a, 'b> {
         type Static = S<'static, 'static>;
     }
 

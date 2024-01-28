@@ -1,6 +1,6 @@
 /*!
-Defines the `TransientAny` derive macro that implements the `MakeStatic`
-and `TransientAny` traits for a struct with at most 1 lifetime parameter.
+Defines the [`TransientAny`][`crate::TransientAny`] derive macro that implements
+the `TransientAny` trait for a struct with at most 1 lifetime parameter.
 */
 
 use proc_macro::TokenStream;
@@ -12,20 +12,18 @@ use syn::{
     spanned::Spanned, TypeGenerics, WhereClause, Error,
 };
 
-/// Derive macro that implements the [`MakeStatic`] and [`TransientAny`]
-/// traits for a struct with at most 1 lifetime parameter.
+/// Derive macro that implements the  [`TransientAny`] trait for a struct with
+/// at most 1 lifetime parameter.
 ///
-/// While the `TransientAny` trait is not implemented directly by this macro, it
-/// is implicitly implemented due to the blanked impl for all `T: MakeStatic`.
 /// This macro is limited to structs satisfying the following conditions:
-///
 /// - There must be at most 1 lifetime parameter. Structs with extra lifetime
 /// parameters can easily implement the trait by hand, but care must be taken
-/// to ensure that its shortest lifetime is chosen for the implementation.
-///
+/// to ensure that the invariants detailed in the trait's [safety docs] are
+/// upheld.
 /// - There may be any number of type (or const) parameters, but the trait
-/// will only be implemented where `T: 'static` for each type `T`.
+/// will only be implemented where `T: 'static` for each type parameter `T`.
 ///
+/// # Examples
 /// Invocation with a type param and a lifetime:
 /// ```no_run
 /// use transient_any::TransientAny;
@@ -36,15 +34,14 @@ use syn::{
 /// }
 /// ```
 /// Generated impl:
-/// ```no_run
-/// # pub mod transient_any {pub unsafe trait MakeStatic<'a> {type Static;}}
+/// ```
 /// # struct S<'a, T> {value: &'a T}
-/// unsafe impl<'a, T: 'static> transient_any::MakeStatic<'a> for S<'a, T> {
+/// unsafe impl<'a, T: 'static> transient_any::TransientAny<'a> for S<'a, T> {
 ///     type Static = S<'static, T>;
 /// }
 /// ```
-/// [`MakeStatic`]: ../transient_any/trait.MakeStatic.html
 /// [`TransientAny`]: ../transient_any/trait.TransientAny.html
+/// [safety docs]: ../transient_any/trait.TransientAny.html#[safety]
 #[proc_macro_derive(TransientAny)]
 pub fn derive_make_static(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
@@ -53,8 +50,28 @@ pub fn derive_make_static(input: TokenStream) -> TokenStream {
     TokenStream::from(tokens)
 }
 
+fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
+    let name = input.ident;
+    let trait_ = trait_path();
+
+    let params = process_generics(input.generics)?;
+    let trait_generics = params.trait_generics();
+    let impl_generics = params.impl_generics();
+    let (ty_generics, where_clause) = params.split_for_impl();
+    let static_ty_generics = params.static_type_generics();
+
+    let tokens = quote!(
+        unsafe impl #impl_generics #trait_ #trait_generics for #name #ty_generics
+        #where_clause {
+            type Static = #name #static_ty_generics;
+        }
+    );
+    Ok(tokens)
+}
+
+
 fn trait_path() -> Path {
-    parse_quote! { transient_any::MakeStatic }
+    parse_quote! { transient_any::TransientAny }
 }
 fn static_type_bound() -> TypeParamBound {
     parse_quote! { 'static }
@@ -74,10 +91,9 @@ struct Params {
     //                impl<'src, T> MakeStatic<'src> for Struct<'src, ...> where
     impl_: Generics,    // <---'                 |                  |        |
     lifetime: Generics, // <---------------------'                  |        |
-    // lifetime: Lifetime, // <---------------------'                  |        |
     original: Generics, // <----------------------------------------'--------'
     //                type Static = Struct<'static, T>;
-    static_: Generics,  // <--------------------'
+    static_: Generics,  // <----------------------'
 }
 impl Params {
 
@@ -104,13 +120,16 @@ impl Params {
     fn trait_generics(&self) -> &Generics {
         &self.lifetime
     }
+
     fn impl_generics(&self) -> &Generics {
         &self.impl_
     }
+
     fn split_for_impl(&self) -> (TypeGenerics, Option<&WhereClause>) {
         let (_, type_generics, where_clause) = self.original.split_for_impl();
         (type_generics, where_clause)
     }
+
     fn static_type_generics(&self) -> TypeGenerics {
         self.static_.split_for_impl().1
     }
@@ -163,24 +182,4 @@ fn process_generics(generics: Generics) -> Result<Params> {
         process_param(param)?;
     }
     Ok(Params::new(lifetime, generics, impl_generics, static_generics))
-}
-
-
-fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
-    let name = input.ident;
-    let trait_ = trait_path();
-
-    let params = process_generics(input.generics)?;
-    let trait_generics = params.trait_generics();
-    let impl_generics = params.impl_generics();
-    let (ty_generics, where_clause) = params.split_for_impl();
-    let static_ty_generics = params.static_type_generics();
-
-    let tokens = quote!(
-        unsafe impl #impl_generics #trait_ #trait_generics for #name #ty_generics
-        #where_clause {
-            type Static = #name #static_ty_generics;
-        }
-    );
-    Ok(tokens)
 }

@@ -15,8 +15,8 @@ is lifted when the *true* lifetime is static, since use-after-free is no longer
 a concern.
 */
 
-use std::{any::{Any, TypeId}, marker::PhantomData};
-use super::MakeStatic;
+use std::{any::{Any, TypeId}, marker::PhantomData, mem};
+use super::TransientAny;
 
 
 /// Safely wraps a potentially non-`'static` value that has been transmuted
@@ -35,40 +35,52 @@ pub struct Erased<'src>(
 
 impl<'src> Erased<'src> {
 
-    /// Erase and wrap a transient value with lifetime `'src`.
-    pub fn new<T: MakeStatic<'src>>(value: T) -> Self {
+    /// Erase and wrap a transient value with lifetime `'src`. This is equivalent
+    /// to calling the `TransientAny::erase` trait method.
+    pub fn new<T: TransientAny<'src>>(value: T) -> Self {
         let boxed = Box::new(value);
-        let extended: Box<T::Static> = unsafe {boxed.make_static_owned()};
+        // transmuting is safe because `TransientAny` promises the types are
+        // compatible; lengthening the lifetime is safe because this wrapper
+        // forbids (safe) access to the unbounded value
+        let extended: Box<T::Static> = unsafe {mem::transmute(boxed)};
         Self(extended, PhantomData)
+        /*let extended: Box<T::Static> = unsafe {boxed.make_static_owned()};*/
     }
     /// Erase and wrap a boxed transient value with lifetime `'src`.
-    pub fn from_boxed<T: MakeStatic<'src>>(boxed: Box<T>) -> Self {
-        let extended: Box<T::Static> = unsafe {boxed.make_static_owned()};
+    pub fn from_boxed<T: TransientAny<'src>>(boxed: Box<T>) -> Self {
+        // transmuting is safe because `TransientAny` promises the types are
+        // compatible; lengthening the lifetime is safe because this wrapper
+        // forbids (safe) access to the unbounded value
+        let extended: Box<T::Static> = unsafe {mem::transmute(boxed)};
         Self(extended, PhantomData)
+        /*let extended: Box<T::Static> = unsafe {boxed.make_static_owned()};*/
     }
 
     /// Safely restore the type and lifetime of the wrapped value.
     ///
-    /// If the conversion fails, `self` is rebuilt and returned in the `Err`
-    /// variant so that the caller can regain ownership. To return the value
-    /// without unboxing, call [`restore_box`][Erased::restore_box] instead.
-    pub fn restore<T: MakeStatic<'src>>(self) -> Result<T, Self> {
+    /// If the conversion fails, `self` is returned in the `Err` variant so 
+    /// the caller can regain ownership. To return the value without unboxing, 
+    /// call [`restore_box`][Erased::restore_box] instead.
+    pub fn restore<T: TransientAny<'src>>(self) -> Result<T, Self> {
         Ok(*self.restore_box::<T>()?)
     }
 
     /// Safely restore the type and lifetime of the wrapped value and return 
     /// it in a `Box`.
     ///
-    /// If the conversion fails, `self` is rebuilt and returned in the `Err`
-    /// variant so that the caller can regain ownership. To return the value
-    /// unboxed, call [`restore`][Erased::restore] instead.
-    pub fn restore_box<T: MakeStatic<'src>>(self) -> Result<Box<T>, Self> {
-        let restored = self.0.downcast::<T::Static>()
+    /// If the conversion fails, `self` is returned in the `Err` variant so 
+    /// the caller can regain ownership. To return the value unboxed, call 
+    /// [`restore`][Erased::restore] instead.
+    pub fn restore_box<T: TransientAny<'src>>(self) -> Result<Box<T>, Self> {
+        let restored: Box<T::Static> = self.0.downcast()
             .map_err(|inner| Erased(inner, PhantomData))?;
-        // the lifetime of the pointed-to value must have been 'src
-        // for `self` to be created from safe code
-        let shortened: Box<T> = unsafe {T::from_static_owned(restored)};
+        // safe because `TransientAny<'src>` promises that the types are
+        // compatible and the true lifetime is `'src`
+        let shortened: Box<T> = unsafe {mem::transmute(restored)};
         Ok(shortened)
+        /*// the lifetime of the pointed-to value must have been 'src
+        // for `self` to be created from safe code
+        let shortened: Box<T> = unsafe {T::from_static_owned(restored)};*/
     }
 
     /// Get the `TypeId` of the wrapped value (see [`Any::type_id`]).
@@ -83,8 +95,20 @@ impl<'src> Erased<'src> {
     /// erased value with original type `&'src str` will return `true` when compared to
     /// any `&'_ str` including `&'static str`, even though they would typically be
     /// classified as distinct types.
-    pub fn is<T: MakeStatic<'src>>(&self) -> bool {
+    pub fn is<T: TransientAny<'src>>(&self) -> bool {
         (&*self.0).is::<T::Static>()
+    }
+
+    /// Get a safely wrapped shared reference to the erased type.
+    pub fn as_ref(&self) -> ErasedRef<'_, 'src> {
+        // we know that `ErasedRef` will uphold the same invariants
+        ErasedRef(&*self.0, PhantomData)
+    }
+
+    /// Get a safely wrapped mutable reference to the erased type.
+    pub fn as_mut(&mut self) -> ErasedMut<'_, 'src> {
+        // we know that `ErasedMut` will uphold the same invariants
+        ErasedMut(&mut *self.0, PhantomData)
     }
 }
 
@@ -107,20 +131,29 @@ pub struct ErasedRef<'borrow, 'src: 'borrow>(
 impl<'borrow, 'src: 'borrow> ErasedRef<'borrow, 'src> {
 
     /// Erase and wrap a shared reference to a value with lifetime `'src` that
-    /// has been borrowed with lifetime `'borrow`.
-    pub fn new<T: MakeStatic<'src>>(value: &'borrow T) -> Self {
-        Self(unsafe {value.make_static_ref()}, PhantomData)
+    /// has been borrowed with lifetime `'borrow`. This is equivalent to calling
+    /// the `TransientAny::erase_ref` trait method.
+    pub fn new<T: TransientAny<'src>>(value: &'borrow T) -> Self {
+        // transmuting is safe because `TransientAny` promises the types are
+        // compatible; lengthening the lifetime is safe because this wrapper
+        // forbids (safe) access to the unbounded value
+        let extended: &T::Static = unsafe {mem::transmute(value)};
+        Self(extended, PhantomData)
+        /*Self(unsafe {value.make_static_ref()}, PhantomData)*/
     }
 
     /// Safely restore the original type `T` and lifetime `'src` of the pointee.
     ///
-    /// If the conversion fails, `self` is rebuilt and returned in the `Err`
+    /// If the conversion fails, `self` is returned in the `Err`
     /// variant so that the caller can regain ownership.
-    pub fn restore<T: MakeStatic<'src>>(self) -> Result<&'borrow T, Self> {
-        let restored = self.0.downcast_ref::<T::Static>().ok_or(self)?;
-        // the true lifetime must have been 'src for `self` to be created from safe code
-        let shortened = unsafe {T::from_static_ref(restored)};
+    pub fn restore<T: TransientAny<'src>>(self) -> Result<&'borrow T, Self> {
+        let restored: &T::Static = self.0.downcast_ref().ok_or(self)?;
+        // safe because `TransientAny<'src>` promises that the types are
+        // compatible and the true lifetime is `'src`
+        let shortened: &T = unsafe {mem::transmute(restored)};
         Ok(shortened)
+        /*// the true lifetime must have been 'src for `self` to be created from safe code
+        let shortened = unsafe {T::from_static_ref(restored)};*/
     }
 
     /// Get the `TypeId` of the wrapped value (see [`Any::type_id`]).
@@ -135,7 +168,7 @@ impl<'borrow, 'src: 'borrow> ErasedRef<'borrow, 'src> {
     /// erased value with original type `&'src str` will return `true` when compared to
     /// any `&'_ str` including `&'static str`, even though they would typically be
     /// classified as distinct types.
-    pub fn is<T: MakeStatic<'src>>(&self) -> bool {
+    pub fn is<T: TransientAny<'src>>(&self) -> bool {
         self.0.is::<T::Static>()
     }
 }
@@ -157,23 +190,32 @@ pub struct ErasedMut<'borrow, 'src: 'borrow>(
 impl<'borrow, 'src: 'borrow> ErasedMut<'borrow, 'src> {
 
     /// Erase and wrap a mutable reference to a value with lifetime `'src` that
-    /// has been borrowed with lifetime `'borrow`.
-    pub fn new<T: MakeStatic<'src>>(value: &'borrow mut T) -> Self {
-        Self(unsafe {value.make_static_mut()}, PhantomData)
+    /// has been borrowed with lifetime `'borrow`. This is equivalent to calling
+    /// the `TransientAny::erase_mut` trait method.
+    pub fn new<T: TransientAny<'src>>(value: &'borrow mut T) -> Self {
+        // transmuting is safe because `TransientAny` promises the types are
+        // compatible; lengthening the lifetime is safe because this wrapper
+        // forbids (safe) access to the unbounded value
+        let extended: &mut T::Static = unsafe {mem::transmute(value)};
+        Self(extended, PhantomData)        
+        /*Self(unsafe {value.make_static_mut()}, PhantomData)*/
     }
 
     /// Safely restore the original type `T` and lifetime `'src` of the pointee.
     ///
-    /// If the conversion fails, `self` is rebuilt and returned in the `Err`
-    /// variant so that the caller can regain ownership.
-    pub fn restore<T: MakeStatic<'src>>(self) -> Result<&'borrow mut T, Self> {
-        if self.is::<T>() {
-            let restored = self.0.downcast_mut::<T::Static>().unwrap();
-            // the true lifetime must have been 'src for `self` to be created from safe code
-            Ok(unsafe {T::from_static_mut(restored)})
-        } else {
-            Err(self)
+    /// If the conversion fails, `self` is returned in the `Err` variant so
+    /// the caller can regain ownership.
+    pub fn restore<T: TransientAny<'src>>(self) -> Result<&'borrow mut T, Self> {
+        if !self.is::<T>() {
+            return Err(self)
         }
+        let restored: &mut T::Static = self.0.downcast_mut().unwrap();
+        // `safe because `TransientAny<'src>` promises that the types are
+        // compatible and the true lifetime is `'src`
+        let shortened: &mut T = unsafe {mem::transmute(restored)};
+        Ok(shortened)
+        /*// the true lifetime must have been 'src for `self` to be created from safe code
+        Ok(unsafe {T::from_static_mut(restored)})*/
     }
 
     /// Get the `TypeId` of the wrapped value (see [`Any::type_id`])
@@ -188,12 +230,18 @@ impl<'borrow, 'src: 'borrow> ErasedMut<'borrow, 'src> {
     /// erased value with original type `&'src str` will return `true` when compared to
     /// any `&'_ str` including `&'static str`, even though they would typically be
     /// classified as distinct types.
-    pub fn is<T: MakeStatic<'src>>(&self) -> bool {
+    pub fn is<T: TransientAny<'src>>(&self) -> bool {
         (&*self.0).is::<T::Static>()
+    }
+
+    /// Reborrow the wrapped reference as a (safely wrapped) shared reference
+    pub fn as_ref(&self) -> ErasedRef<'_, 'src> {
+        // we know that `ErasedRef` will uphold the same invariants
+        ErasedRef(&*self.0, PhantomData)
     }
 }
 
-// === METHODS FOR ACCESSING THE WRAPPED VALUE === //
+// === METHODS FOR ACCESSING THE WRAPPED VALUE WHEN `'src: 'static` === //
 
 /// These methods are only implemented when `'src: 'static`, since access to
 /// a transient value with an artificially extended lifetime would be unsafe.
@@ -245,7 +293,7 @@ impl<'borrow> ErasedMut<'borrow, 'static> {
 /// Since a `dyn Any` created from safe code has an implicit `'static` bound,
 /// we can place it directly into the wrapper with `'src: 'static`. However,
 /// note that the `Erased::restore` method will restore the original value
-/// that was cast to `dyn Any`, not the erased `dyn Any` itself.
+/// that was cast to `dyn Any`, not the `Box<dyn Any>` itself.
 impl From<Box<dyn Any>> for Erased<'static> {
     fn from(value: Box<dyn Any>) -> Self {
         Erased(value, PhantomData)
@@ -255,7 +303,7 @@ impl From<Box<dyn Any>> for Erased<'static> {
 /// Since a `dyn Any` created from safe code has an implicit `'static` bound,
 /// we can place it directly into the wrapper with `'src: 'static`. However,
 /// note that the `ErasedRef::restore` method will restore the original value
-/// that was cast to `dyn Any`, not the erased `dyn Any` itself.
+/// that was cast to `dyn Any`, not the `&dyn Any` itself.
 impl<'borrow> From<&'borrow dyn Any> for ErasedRef<'borrow, 'static> {
     fn from(value: &'borrow dyn Any) -> Self {
         ErasedRef(value, PhantomData)
