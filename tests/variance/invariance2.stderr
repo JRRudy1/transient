@@ -1,0 +1,14 @@
+error[E0597]: `string` does not live long enough
+  --> tests/variance/invariance2.rs:25:38
+   |
+18 |     let long: ErasedInv<'static> = static_.into();
+   |               ------------------ type annotation requires that `string` is borrowed for `'static`
+19 |     {
+20 |         let string = "short".to_string();
+   |             ------ binding `string` declared here
+...
+25 |         let shortened = shrink(long, &string);
+   |                                      ^^^^^^^ borrowed value does not live long enough
+26 |         assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
+27 |     }
+   |     - `string` dropped here while still borrowed

@@ -1,13 +1,24 @@
 [package]
 name = "transient_any"
 version = "0.0.1"
+authors = ["Joshua Rudolph <jrudolph093@gmail.com>"]
+license = "MIT"
+readme = "README.md"
 edition = "2021"
+
+# repository = "https://github.com/rust-lang/..."
+# documentation = "https://docs.rs/..."
+# homepage = "https://github.com/rust-lang/..."
+# description = """..."""
 
 [workspace]
 members = ["derive"]
 
 [dependencies]
-transient_any_derive = { path = "derive", optional = true}
+transient_any_derive = { path = "derive", optional = true }
+
+[dev-dependencies]
+trybuild = { version = "1.0.49", features = ["diff"] }
 
 [features]
 default = ["derive"]

@@ -1,5 +1,5 @@
 error: At most one lifetime parameter is allowed!
- --> tests/05-extra-lifetime.rs:6:14
+ --> tests/fail/02-unsafe-covariance.rs:7:14
   |
-6 | struct S<'a, 'b, T> {
+7 | struct S<'a, 'b, T> {
   |              ^^

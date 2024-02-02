@@ -8,7 +8,6 @@ struct S<'a, 'b, T> {
     value2: &'b T,
 }
 
-
 fn main() {
     // this test should fail to compile
 }
