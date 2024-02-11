@@ -34,8 +34,8 @@ pub unsafe trait Variance<'a>: Transience<Frozen=Invariant<'a>> {}
 /// be loosened. For example, the erased wrapper structs typically restrict all
 /// access to the inner `dyn Any`, but expose safe public methods for getting
 /// accessing it when the wrapped type is `'static`.
-pub type Static = ();
-unsafe impl Transience for Static {
+pub type Timeless = ();
+unsafe impl Transience for Timeless {
     type Frozen = Self;
 }
 
@@ -82,6 +82,7 @@ pub type Co<'a> = Covariant<'a>;
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Contravariant<'a>( PhantomData<fn(&'a ())> );
+
 /// Convenience type alias
 pub type Contra<'a> = Contravariant<'a>;
 
@@ -238,13 +239,67 @@ impl_transience_tuples!{
 pub unsafe trait IntoTransience<Other: ?Sized> {}
 
 
-/// `Static` can safely converted to any other `Transience`.
-unsafe impl<V: Transience + ?Sized> IntoTransience<V> for Static {}
+pub unsafe trait RecoverTransience<From> {}
+unsafe impl<V: Transience> RecoverTransience<V> for Timeless {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Inv<'a> {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Co<'a> {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Contra<'a> {}
+unsafe impl<'a, 'long: 'a> RecoverTransience<Co<'long>> for Co<'a> {}
+unsafe impl<'short, 'a: 'short> RecoverTransience<Contra<'short>> for Contra<'a> {}
+
+
+unsafe impl<A1, A2>
+    RecoverTransience<(A2,)> for (A1,)
+where
+    A1: RecoverTransience<A2>,
+{}
+
+unsafe impl<A1, A2, B1, B2>
+    RecoverTransience<(A2, B2)> for (A1, B1)
+where
+    A1: RecoverTransience<A2>,
+    B1: RecoverTransience<B2>,
+{}
+
+unsafe impl<A1, A2, B1, B2, C1, C2>
+    RecoverTransience<(A2, B2, C2)> for (A1, B1, C1)
+where
+    A1: RecoverTransience<A2>,
+    B1: RecoverTransience<B2>,
+    C1: RecoverTransience<C2>,
+{}
+
+unsafe impl<A1, A2, B1, B2, C1, C2, D1, D2>
+    RecoverTransience<(A2, B2, C2, D2)> for (A1, B1, C1, D1)
+where
+    A1: RecoverTransience<A2>,
+    B1: RecoverTransience<B2>,
+    C1: RecoverTransience<C2>,
+    D1: RecoverTransience<D2>,
+{}
+
+
+
+
+/// `Timeless` can safely converted to any other `Transience`.
+unsafe impl<V: Transience + ?Sized> IntoTransience<V> for Timeless {}
+
+
+
+
+// /// Any `Variance` can recovered from any other `Variance` with the same lifetime.
+// // This doesn't exhaustively reflect reality (e.g. it would be hard to justify
+// // `Co<'a>` -> `Contra<'a>` being a valid recovery), but the states required for
+// // the edge cases would not be reachable from safe code anyways.
+// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Inv<'a> {}
+// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Co<'a> {}
+// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Contra<'a> {}
 
 
 /// `Covariant` can shorten its lifetime.
-unsafe impl<'short, 'long: 'short>
-    IntoTransience<Co<'short>> for Co<'long> {}
+unsafe impl<'short, 'long: 'short> IntoTransience<Co<'short>> for Co<'long> {}
+
+
 
 /// `Covariant` can shorten its lifetime and/or become `Invariant`.
 unsafe impl<'short, 'long: 'short>
@@ -268,14 +323,12 @@ unsafe impl<'a> IntoTransience<Inv<'a>> for Inv<'a> {}
 unsafe impl<A1: ?Sized, A2: ?Sized>
     IntoTransience<(A2,)> for (A1,)
 where
-    // (A1,): Transience,
     A1: IntoTransience<A2>,
 {}
 
 unsafe impl<A1, B1: ?Sized, A2, B2: ?Sized>
     IntoTransience<(A2, B2)> for (A1, B1)
 where
-    // (A1, B1): Transience,
     A1: IntoTransience<A2>,
     B1: IntoTransience<B2>,
 {}

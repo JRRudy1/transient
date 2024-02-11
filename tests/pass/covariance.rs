@@ -11,20 +11,20 @@ unsafe impl<'a, T: 'static> Transient for TypeAndLifetime<'a, T> {
 
 // This function requires `long` to shorten its lifetime from 'b to 'a, which
 // is only allowed if the compiler recognizes it as *covariant*.
-fn shrink<'a, 'b: 'a>(long: ErasedCo<'b>, _short: &'a String) -> ErasedCo<'a> {
-    long
+fn shrink<'a, 'b: 'a>(long: Box<dyn Any<Co<'b>>>) -> Box<dyn Any<Co<'a>>> {
+    long.transcend()
 }
 
 fn main() {
     // by default a `usize` will `v_erase` to `Static` variance, but use `Into` to convert
-    let static_: Erased<Static> = 5_usize.erase();
-    let long: ErasedCo<'static> = static_.into_transience();
+    let static_: Box<dyn Any> = 5_usize.erase();
+    let long: Box<dyn Any<Co>> = static_.transcend();
     {
         let string = "short".to_string();
         // `long` is `'static` but `string` is `'short`, so the cast from
         // `Erased<'static, Covariant<'static>>` to `Erased<'short, Covariant<'short>>`
         // requires *covariance*
-        let shortened = shrink(long, &string);
+        let shortened = shrink(long);
         assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
     }
 }

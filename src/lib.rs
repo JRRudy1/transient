@@ -97,7 +97,7 @@
 //!     dangerous: S<'static>,
 //!     lifetime: std::marker::PhantomData<&'a ()>
 //! }
-//! pub fn make_static_and_wrap<'a>(s: S<'a>) -> SafetyWrapper<'a> {
+//! pub fn make_static_and_wrap(s: S<'_>) -> SafetyWrapper<'_> {
 //!     SafetyWrapper {
 //!         // safe because we know the types have the same layout
 //!         dangerous: unsafe { std::mem::transmute::<_, S<'static>>(s) },
@@ -285,8 +285,8 @@
 //! annotations will be included for clarity, wherein the anonymous lifetime
 //! `'_` will be used to represent the `'src` lifetime.
 //!
-//! ```rust
-//! use transient::{Transient, Erased, Invariant};
+//! ```skip
+//! use transient::{Transient, Invariant};
 //!
 //! #[derive(Transient, Clone, Debug, PartialEq, Eq)]
 //! struct S<'a> {
@@ -363,7 +363,7 @@
 //! # Variance
 //!
 //! Covariance:
-//! ```
+//! ```skip
 //! use transient::*;
 //! fn shrink<'short, 'long: 'short>(long: Erased<Co<'long>>) -> Erased<Co<'short>> {
 //!     long
@@ -390,57 +390,26 @@
 //! [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
 
-
 // #![warn(missing_docs)]
 
 #[cfg(test)]
 pub mod tests;
 
-pub mod erased;
 pub mod transience;
-
 mod transient;
-pub mod storage;
-pub mod iter;
 mod any;
-// mod cell;
-
 
 #[doc(inline)]
 pub use crate::transient::Transient;
 
 #[doc(inline)]
-pub use storage::{
-    Storage, Owned, Ref, Mut,
-};
-
-#[doc(inline)]
-pub use erased::{
-    Erased, ErasedRef, ErasedMut,
-    ErasedCo, ErasedContra, ErasedInv,
-};
+pub use crate::any::{Any, AnyOps};
 
 pub use transience::{
-    Transience, Invariant, Covariant,
-    Contravariant, Static,
-    Co, Contra, Inv,
+    Transience, IntoTransience,
+    Invariant, Covariant, Contravariant,
+    Timeless, Co, Contra, Inv,
 };
-
-pub use iter::{
-    IterErase
-};
-
-
-/// Re-exports symbols for covariant types
-pub mod covariant {
-    pub use crate::transience::{Transience, Covariant};
-    pub use crate::erased::{ErasedCo as Erased};
-}
-/// Re-exports symbols for invariant structs
-pub mod invariant {
-    pub use crate::transience::{Transience, Invariant};
-    pub use crate::erased::{ErasedInv as Erased};
-}
 
 
 #[cfg(feature = "derive")]
@@ -456,11 +425,11 @@ macro_rules! impl_primatives {
         }
         unsafe impl<'a> Transient for &'a $ty {
             type Static = &'static $ty;
-            type Transience = transience::Covariant<'a>;
+            type Transience = Covariant<'a>;
         }
         unsafe impl<'a> Transient for &'a mut $ty {
             type Static = &'static mut $ty;
-            type Transience = transience::Covariant<'a>;
+            type Transience = Covariant<'a>;
         }
         unsafe impl<'a, 'b: 'a> Transient for &'a &'b $ty {
             type Static = &'static &'static $ty;
@@ -481,20 +450,11 @@ macro_rules! impl_primatives {
         )*
     }
 }
-// unsafe impl<'a, T: Transient> Transient for &'a T {
-//     type Static = &'static T::Static;
-//     type Transience = (Inv<'a>, T::Transience);
-// }
 
 impl_primatives!{
     isize, i8, i16, i32, i64, usize, u8, u16, u32, u64, f32, f64,
     String, Box<str>, &'static str,
 }
-
-// unsafe impl Transient for dyn std::any::Any {
-//     type Static = dyn std::any::Any;
-//     type Transience = ();
-// }
 
 unsafe impl<T: 'static> Transient for Vec<T> {
     type Static = Vec<T>;

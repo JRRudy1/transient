@@ -1,86 +1,15 @@
 //! Defines the [`Transient`] trait.
 use crate::{
-    erased::{ErasedRef, ErasedMut, Erased},
     transience::Transience,
 };
 
 
-pub trait Static: Transient<Static=Self> + Sized + 'static {
-
-    unsafe fn restore_box<T>(self: Box<Self>) -> Box<T>
-    where
-        Self: Sized,
-        T: Transient<Static=Self>
-    {
-        std::mem::transmute(self)
-    }
-    unsafe fn restore_ref<T>(&self) -> &T
-    where
-        Self: Sized,
-        T: Transient<Static=Self>
-    {
-        std::mem::transmute(self)
-    }
-    unsafe fn restore_mut<T>(&mut self) -> &mut T
-    where
-        Self: Sized,
-        T: Transient<Static=Self>
-    {
-        std::mem::transmute(self)
-    }
-}
+pub trait Static: Transient<Static=Self> + Sized + 'static {}
 
 impl<T: ?Sized> Static for T
 where
     T: Transient<Static=Self> + 'static
 {}
-
-//
-// pub unsafe trait Equivalent<Other: ?Sized> {
-//     fn convert_box(self: Box<Self>) -> Box<Other>;
-//     fn erase_box(self: Box<Self>) -> Box<dyn Any>;
-//     fn erase_ref(&self) -> &dyn Any;
-//     fn erase_mut(&mut self) -> &mut dyn Any;
-// }
-//
-// unsafe impl<T: Transient> Equivalent<T> for <T as Transient>::Static
-// where
-//     T: Transient + Sized,
-//     <T as Transient>::Static: Sized
-// {
-//     fn convert_box(self: Box<Self>) -> Box<T> {
-//         unsafe { std::mem::transmute(self) }
-//     }
-//
-//     fn erase_box(self: Box<Self>) -> Box<dyn Any> {
-//         self
-//     }
-//
-//     fn erase_ref(&self) -> &dyn Any {
-//         self
-//     }
-//
-//     fn erase_mut(&mut self) -> &mut dyn Any {
-//         self
-//     }
-// }
-//
-// unsafe impl Equivalent<dyn Any> for dyn Any {
-//     fn convert_box(self: Box<Self>) -> Box<dyn Any> {
-//         self
-//     }
-//     fn erase_box(self: Box<Self>) -> Box<dyn Any> {
-//         self
-//     }
-//     fn erase_ref(&self) -> &dyn Any {
-//         self
-//     }
-//
-//     fn erase_mut(&mut self) -> &mut dyn Any {
-//         todo!()
-//     }
-// }
-
 
 /// Unsafe trait for converting the lifetime parameters of a type to (and from)
 /// `'static` so that it can be cast to `dyn Any`. This trait can be derived
@@ -222,36 +151,6 @@ pub unsafe trait Transient: Sized {
 
     /// todo
     type Transience: Transience;
-
-    /// Erase the value's type and return a wrapper for safely restoring it.
-    fn erase(self) -> Erased<Self::Transience> {
-        Erased::new(self)
-    }
-
-    /// Erase the value's type and return an *invariant* wrapper for safely restoring it.
-    fn ierase<'src>(self) -> Erased<<Self::Transience as Transience>::Frozen> {
-        Erased::<Self::Transience>::new(self).into_invariant()
-    }
-
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn erase_ref(&self) -> ErasedRef<Self::Transience> {
-        ErasedRef::new(self)
-    }
-
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn ierase_ref(&self) -> ErasedRef<<Self::Transience as Transience>::Frozen> {
-        ErasedRef::<Self::Transience>::new(self).as_ref().into_invariant()
-    }
-
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn erase_mut(&mut self) -> ErasedMut<Self::Transience> {
-        ErasedMut::new(self)
-    }
-
-    /// Erase the pointed-to value's type and return a wrapper for safely restoring it.
-    fn ierase_mut(&mut self) -> ErasedMut<<Self::Transience as Transience>::Frozen> {
-        ErasedMut::invariant(self)
-    }
 
     /// Get the [TypeId][`std::any::TypeId`] of the `'static`-ified type.
     fn static_type_id() -> std::any::TypeId {
