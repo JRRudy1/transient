@@ -1,4 +1,4 @@
-transient_any
+transient
 =====
 This crate extends the dynamic typing mechanism provided by the [`std::any::Any`]
 trait to add support for types with non-`'static` lifetimes.
@@ -20,8 +20,8 @@ be borrowed.
 This crate aims to circumvent this limitation through careful use of `unsafe` code
 hidden behind a safe abstraction, so that type-erasure may be applied to transient
 (i.e. non-`'static`) data. This is achieved using the `MakeStatic` and
-`TransientAny` traits, the `Erased`, `ErasedRef`, and `ErasedMut` wrapper
-structs, and the `TransientAny` derive macro that helps make the functionality
+`Transient` traits, the `Erased`, `ErasedRef`, and `ErasedMut` wrapper
+structs, and the `Transient` derive macro that helps make the functionality
 in this crate painless to utilize.
 
 # Approach
@@ -56,8 +56,8 @@ lifetime `'src` before returning it to the caller.
 
 # Usage
 After implementing the `MakeStatic` trait for a type (either manually or
-using the `TransientAny` derive macro]), the primary entry point for utilizing
-the functionality in this crate is provided by the `TransientAny` trait].
+using the `Transient` derive macro]), the primary entry point for utilizing
+the functionality in this crate is provided by the `Transient` trait].
 This trait is implemented automatically by a blanket `impl` for all
 `T: MakeStatic<'src>`, and exposes safe methods for erasing the type of an owned
 value (`erase`), shared reference (`erase_ref`), or mutable reference
@@ -79,9 +79,9 @@ annotations will be included for clarity, wherein the anonymous lifetime
 `'_` will be used to represent the `'src` lifetime.
 
 ```rust
-use transient_any::{TransientAny, Erased};
+use transient::{Transient, Erased};
 
-#[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+#[derive(Transient, Clone, Debug, PartialEq, Eq)]
 struct S<'a> {
     value: &'a String,
 }

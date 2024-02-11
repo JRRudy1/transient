@@ -1,7 +1,7 @@
 error[E0597]: `string` does not live long enough
-  --> tests/variance/invariance2.rs:25:38
+  --> tests/fail/invariance-bad-usage.rs:25:38
    |
-18 |     let long: ErasedInv<'static> = static_.into();
+18 |     let long: ErasedInv<'static> = static_.into_transience();
    |               ------------------ type annotation requires that `string` is borrowed for `'static`
 19 |     {
 20 |         let string = "short".to_string();

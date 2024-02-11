@@ -1,7 +1,7 @@
 //! Ensures that a covariant usage of an invariant wrapper gets rejected
 
 #![allow(dead_code)]
-use transient_any::*;
+use transient::*;
 
 
 /// This function requires the two arguments to have a matching lifetime.
@@ -14,8 +14,8 @@ fn shrink<'a>(long: ErasedInv<'a>, _short: &'a String) -> ErasedInv<'a> {
 
 /// This test should fail to compile
 fn main() {
-    let static_: Erased<'_, Static> = 5_usize.v_erase();
-    let long: ErasedInv<'static> = static_.into();
+    let static_: Erased<Static> = 5_usize.erase();
+    let long: ErasedInv<'static> = static_.into_transience();
     {
         let string = "short".to_string();
         // `long` is `'static` but `string` is `'short`, so

@@ -1,13 +1,12 @@
-#![allow(dead_code)]
-use transient_any::*;
-use transient_any::TransientAny;
+
+use transient::*;
 
 struct TypeAndLifetime<'a, T> {
     value: &'a T,
 }
-unsafe impl<'a, T: 'static> transient_any::TransientAny<'a> for TypeAndLifetime<'a, T> {
+unsafe impl<'a, T: 'static> Transient for TypeAndLifetime<'a, T> {
     type Static = TypeAndLifetime<'static, T>;
-    type Variance = Covariant<'a>;
+    type Transience = Covariant<'a>;
 }
 
 // This function requires `long` to shorten its lifetime from 'b to 'a, which
@@ -18,8 +17,8 @@ fn shrink<'a, 'b: 'a>(long: ErasedCo<'b>, _short: &'a String) -> ErasedCo<'a> {
 
 fn main() {
     // by default a `usize` will `v_erase` to `Static` variance, but use `Into` to convert
-    let static_: Erased<'_, Static> = 5_usize.v_erase();
-    let long: ErasedCo<'static> = static_.into();
+    let static_: Erased<Static> = 5_usize.erase();
+    let long: ErasedCo<'static> = static_.into_transience();
     {
         let string = "short".to_string();
         // `long` is `'static` but `string` is `'short`, so the cast from

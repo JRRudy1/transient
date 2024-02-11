@@ -1,7 +1,6 @@
-/*!
-Defines the [`TransientAny`][`crate::TransientAny`] derive macro that implements
-the `TransientAny` trait for a struct with at most 1 lifetime parameter.
-*/
+//! Defines the [`Transient`][`crate::Transient`] derive macro that implements
+//! the `Transient` trait for a struct with at most 1 lifetime parameter.
+
 #![allow(unused_imports)]
 use std::mem;
 use proc_macro::TokenStream;
@@ -15,7 +14,7 @@ use syn::{
 };
 
 
-/// Derive macro that implements the  [`TransientAny`] trait for a struct with
+/// Derive macro that implements the  [`Transient`] trait for a struct with
 /// at most 1 lifetime parameter.
 ///
 /// This macro is limited to structs satisfying the following conditions:
@@ -29,9 +28,9 @@ use syn::{
 /// # Examples
 /// Invocation with a type param and a lifetime:
 /// ```no_run
-/// use transient_any::TransientAny;
+/// use transient::Transient;
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 /// struct S<'a, T> {
 ///     value: &'a T,
 /// }
@@ -39,15 +38,15 @@ use syn::{
 /// Generated impl:
 /// ```
 /// # struct S<'a, T> {value: &'a T}
-/// unsafe impl<'a, T: 'static> transient_any::TransientAny<'a> for S<'a, T> {
+/// unsafe impl<'a, T: 'static> transient::Transient for S<'a, T> {
 ///     type Static = S<'static, T>;
-///     type Variance = transient_any::variance::Invariant<'a>;
+///     type Transience = transient::Invariant<'a>;
 /// }
 /// ```
-/// [`TransientAny`]: ../transient_any/trait.TransientAny.html
-/// [safety docs]: ../transient_any/trait.TransientAny.html#[safety]
-#[proc_macro_derive(TransientAny, attributes(r#unsafe, invariant, covariant, contravariant))]
-pub fn derive_make_static(input: TokenStream) -> TokenStream {
+/// [`Transient`]: ../transient/trait.Transient.html
+/// [safety docs]: ../transient/trait.Transient.html#[safety]
+#[proc_macro_derive(Transient, attributes(r#unsafe, invariant, covariant, contravariant))]
+pub fn derive_transient(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
     let tokens = generate_impl(input)
         .unwrap_or_else(|e| e.to_compile_error());
@@ -74,10 +73,10 @@ fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
     };
 
     let tokens = quote!(
-        unsafe impl #impl_generics #trait_ #trait_generics for #name #ty_generics
+        unsafe impl #impl_generics #trait_ for #name #ty_generics
         #where_clause {
             type Static = #name #static_ty_generics;
-            type Variance = #variance_ty;
+            type Transience = #variance_ty;
         }
     );
     Ok(tokens)
@@ -92,7 +91,6 @@ const CONTRAVARIANT: &'static str = "contravariant";
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Variance {
     Covariant,
-    #[allow(dead_code)]
     Contravariant,
     Invariant,
     Static,
@@ -100,10 +98,10 @@ enum Variance {
 impl Variance {
     fn as_path(&self) -> Path {
         match self {
-            Variance::Invariant => parse_quote!(transient_any::Invariant),
-            Variance::Covariant => parse_quote!(transient_any::Covariant),
-            Variance::Static => parse_quote!(transient_any::Static),
-            Variance::Contravariant => panic!("Contravariance not supported!"),
+            Variance::Invariant => parse_quote!(transient::Invariant),
+            Variance::Covariant => parse_quote!(transient::Covariant),
+            Variance::Contravariant => parse_quote!(transient::Contravariant),
+            Variance::Static => parse_quote!(transient::Static),
         }
     }
 }
@@ -115,8 +113,9 @@ fn parse_attr(meta: &ParseNestedMeta, marked_unsafe: bool) -> Result<Option<Vari
     match (ident.to_lowercase().as_str(), marked_unsafe) {
         (INVARIANT, _) => Ok(Some(Variance::Invariant)),
         (COVARIANT, true) => Ok(Some(Variance::Covariant)),
+        (CONTRAVARIANT, true) => Ok(Some(Variance::Contravariant)),
         (COVARIANT, false) => Err(unsafe_variance_err(COVARIANT, span)),
-        (CONTRAVARIANT, _) => Err(unsupported_variance_err(CONTRAVARIANT, span)),
+        (CONTRAVARIANT, false) => Err(unsafe_variance_err(CONTRAVARIANT, span)),
         _ => Err(unexpected_arg_err(path))
     }
 }
@@ -143,7 +142,7 @@ fn parse_attrs(attrs: &Vec<Attribute>) -> Result<Variance> {
 
 
 
-fn trait_path() -> Path {parse_quote! {transient_any::TransientAny}}
+fn trait_path() -> Path {parse_quote! {transient::Transient}}
 fn static_type_bound() -> TypeParamBound {parse_quote! { 'static }}
 fn static_param() -> GenericParam {parse_quote! { 'static }}
 fn static_lifetime() -> Lifetime {parse_quote! { 'static }}
@@ -277,9 +276,5 @@ fn unsafe_variance_err(variance: &'static str, span: Span) -> Error {
     let msg = format!(
         "Setting the variance to '{variance}' is unsafe! Wrap the argument \
         with `r#unsafe(...)` after reviewing the safety documentation!");
-    Error::new(span, msg)
-}
-fn unsupported_variance_err(variance: &'static str, span: Span) -> Error {
-    let msg = format!("{variance} not yet supported!");
     Error::new(span, msg)
 }

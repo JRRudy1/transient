@@ -1,8 +1,8 @@
 //! Ensure fails when the `covariant` attribute is used without `r#unsafe`
-use transient_any::TransientAny;
+use transient::Transient;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
+#[derive(Debug, Clone, PartialEq, Eq, Transient)]
 #[covariant]
 struct S<'a, 'b, T> {
     value1: &'a T,

@@ -1,8 +1,8 @@
 //! Tests the behavior when used on structs without a lifetime parameter
-use transient_any::TransientAny;
+use transient::Transient;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
+#[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct S<T> {
     value: T,
 }

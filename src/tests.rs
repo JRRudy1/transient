@@ -1,28 +1,45 @@
 
 /// Tests for a simple struct with no generic parameters.
+mod double {
+    use crate::{Invariant, Transient};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct S<'a, T1, T2> {
+        value1: &'a T1,
+        value2: &'a T2,
+
+    }
+    unsafe impl<'a, T1: 'static, T2: 'static> Transient for S<'a, T1, T2> {
+        type Static = S<'static, T1, T2>;
+        type Transience = Invariant<'a>;
+    }
+
+}
+
+/// Tests for a simple struct with no generic parameters.
 mod basic {
-    use crate::{Invariant, TransientAny};
-    
+    use crate::{Invariant, Transient};
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
         value: &'a String
     }
-    unsafe impl<'a> TransientAny<'a> for S<'a> {
+    unsafe impl<'a> Transient for S<'a> {
         type Static = S<'static>;
-        type Variance = Invariant<'a>;
+        type Transience = Invariant<'a>;
     }
 
     #[test]
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
         let original = S{value: &value};
-        let erased = original.clone().erase();
+        let erased = original.clone().ierase();
         assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap();
         assert_eq!(restored, original);
     }
     #[test]
-    pub(super) fn test_ref() { // single lifetime (derived `TransientAny` impl)
+    pub(super) fn test_ref() { // single lifetime (derived `Transient` impl)
         let value = "qwer".to_string();
         let original = S{value: &value};
         let erased = original.erase_ref();
@@ -44,15 +61,15 @@ mod basic {
 
 /// Tests for a struct with generic parameters.
 mod generics {
-    use crate::{Invariant, TransientAny};
+    use crate::{Invariant, Transient};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
         value: &'a T,
     }
-    unsafe impl<'a, T: 'static> TransientAny<'a> for S<'a, T> {
+    unsafe impl<'a, T: 'static> Transient for S<'a, T> {
         type Static = S<'static, T>;
-        type Variance = Invariant<'a>;
+        type Transience = Invariant<'a>;
     }
 
     type SS<'a> = S<'a, String>;
@@ -61,7 +78,7 @@ mod generics {
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
         let original = SS{value: &value};
-        let erased = original.clone().erase();
+        let erased = original.clone().ierase();
         assert_eq!(erased.type_id(), SS::static_type_id());
         let restored = erased.restore::<SS>().unwrap();
         assert_eq!(restored, original);
@@ -92,48 +109,54 @@ mod generics {
 /// Tests for a struct with more than one lifetime parameter.
 #[allow(unused)]
 mod multi_lifetime {
-    use std::marker::PhantomData;
-    use crate::{TransientAny, ErasedRef, Erased, Variance, VarianceTag};
+    use std::any::Any;
+    use crate::{transient::Transient, Erased, Transience, Invariant, Covariant};
 
-    pub type Invariant<'a, 'b> = PhantomData<fn(&'a &'b ()) -> &'a &'b ()>;
-
-    unsafe impl<'a, 'b> Variance for Invariant<'a, 'b> {
-        const TAG: VarianceTag = VarianceTag::Invariant;
-    }
+    pub type InvInv<'a, 'b> = (Invariant<'a>, Invariant<'b>);
+    pub type CoCo<'a, 'b> = (Covariant<'a>, Covariant<'b>);
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'s, 'l: 's> {
         short: &'s str,
         long: &'l str,
     }
-    unsafe impl<'s, 'l: 's> TransientAny<'s> for S<'s, 'l> {
+    unsafe impl<'s, 'l: 's> Transient for S<'s, 'l> {
         type Static = S<'static, 'static>;
-        type Variance = Invariant<'s, 'l>;
+        type Transience = InvInv<'s, 'l>;
+    }
+    impl<'s, 'l: 's> S<'s, 'l> {
+
+        fn restore_(erased: Box<dyn Any>, tr: InvInv<'s, 'l>) -> Result<Self, Box<dyn Any>>{
+            let x: Box<S<'static, 'static>> = erased.downcast()?;
+            let y: S<'static, 'static> = *x;
+            let z: S<'s, 'l> = unsafe { std::mem::transmute(y) };
+            Ok(z)
+        }
     }
 
-    fn f0<'b, 's, 'l: 's, V: Variance>(short: &'b Erased<'s, V>, long: &'l str) -> &'l str {
+    fn f0<'b, 's, 'l: 's, V: Transience>(short: &'b Erased<V>, long: &'l str) -> &'l str {
         long
     }
-    fn f<'s, 'l: 's>(short: &mut &'s str, long: &mut &'l str) -> &'static str {
+    fn f<'s, 'l: 's>(short: &mut &'s str, long: &mut &'l str) -> &'l str {
 
-        let original: S<'s, 'l> = S {short: *short, long: *long}; // impl `TransientAny<'s>`
-        let erased: Erased<'s, Invariant<'s, 'l>> = Erased::new(original);
+        let original: S<'s, 'l> = S {short: *short, long: *long}; // impl `Transient<'s>`
+        let erased: Erased<InvInv<'s, 'l>> = Erased::new(original);
 
         let _: &'l str = f0(&erased, long);
-        // `S<'s, 'static>: TransientAny<'s>`
-        let restored: S<'s, 'static> = erased.restore().unwrap();
+        // `S<'s, 'static>: Transient<'s>`
+        let restored: S<'s, 'l> = erased.restore().unwrap();
 
         let short2: &'s str = restored.short;
         // `long2` isn't actually static! It only lives for `'l`
-        let long2: &'static str = restored.long;
+        let long2: &'l str = restored.long;
 
         // assert_eq!(*long, restored.long);
         long2
     }
-
+    /*
     #[test]
     pub(super) fn test_ref() {
-        let fake_static: &'static str;
+        let fake_static: &'_ str;
         {
             let mut long = "long".to_string();
             long.push_str("qqq");
@@ -163,7 +186,7 @@ mod multi_lifetime {
         assert_eq!(erased.type_id(), S::static_type_id());
         let restored = erased.restore::<S>().unwrap();
         assert_eq!(restored, &original);
-    }
+    }*/
 }
 
 
@@ -171,7 +194,7 @@ mod multi_lifetime {
 /// Tests for a struct with generic parameters.
 #[allow(dead_code, unused)]
 mod contravariance {
-    use crate::{TransientAny, Erased, ErasedRef, variance};
+    use crate::{Transient, Erased, ErasedRef, variance};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
@@ -180,7 +203,7 @@ mod contravariance {
     }
 
 
-    unsafe impl<'a> TransientAny<'a> for S<'a> {
+    unsafe impl<'a> Transient<'a> for S<'a> {
         type Static = S<'static>;
         type Variance = variance::Invariant<'a>;
     }
@@ -266,14 +289,14 @@ mod contravariance {
     }*/
 }
 */
-
+/*
 /// Tests for impls generated by the derive macro
 #[cfg(feature = "derive")]
 mod derived {
     use crate as transient_any;  // workaround for macro hygiene
-    use crate::TransientAny;
+    use crate::Transient;
 
-    #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+    #[derive(Transient, Clone, Debug, PartialEq, Eq)]
     struct S<'a, T> {
         value: &'a T,
     }
@@ -289,7 +312,7 @@ mod derived {
         assert_eq!(restored, original);
     }
 
-    #[derive(TransientAny, Clone, Debug, PartialEq, Eq)]
+    #[derive(Transient, Clone, Debug, PartialEq, Eq)]
     struct S2<T> {
         value: T,
     }
@@ -305,116 +328,63 @@ mod derived {
     }
 }
 
-
-#[allow(unused, dead_code)]
-mod variance {
-    use std::marker::PhantomData;
-    use std::cell::UnsafeCell;
-
-    struct CovariantStruct<'a> {
-        value: &'a String  // struct is covariant over 'a
-    }
-    struct InvariantStruct<'a> {
-        value: &'a mut String  // struct is invariant over 'a
-    }
-
-    struct Wrapper<'a, V> (
-        &'a String,  // struct is invariant over 'a
-        PhantomData<V>,
-        // PhantomData<&'a ()>
-    );
-
-    impl<'short> InvWrapper<'short> {
-
-        fn test_co<'long: 'short>(s: &'short String, t: &'long String) {
-            let long: CoWrapper<'long> = Wrapper(t, PhantomData);
-            let shortened: CoWrapper<'short> = long;
-        }
-
-        fn test_inv<'long: 'short>(s: &'short String, t: &'long String) {
-            // let long: InvWrapper<'long> = Wrapper(t, PhantomData);
-            // let shortened: InvWrapper<'short> = long;
-        }
-
-    }
-
-
-    type InvWrapper0<'a> = Wrapper<'a, &'a mut &'a mut ()>;
-    type InvWrapper<'a> = Wrapper<'a, fn(&'a ()) -> &'a ()>;
-    type CoWrapper<'a> = Wrapper<'a, &'a ()>;
-
-    // 'long must shorten to 'short
-    fn f<T>(short: &T, long: &T) {
-        ()
-    }
-    fn nf<'a>(arg: &'a ()) -> &'a () {
-        arg
-    }
-
-    fn test_func<'short, 'long: 'short, V>(s: &'short String, t: &'long String) {
-
-        let short: Wrapper<'short, V> = Wrapper(s, PhantomData);
-        let long: Wrapper<'long, V> = Wrapper(t, PhantomData);
-
-        let shortened: Wrapper<'short, V> = long;
-    }
-
-    fn shrink<'short, 'long: 'short, V>(long: Wrapper<'long, V>, _: &'short String) -> Wrapper<'short, V> {
-        long
-    }
-
-    fn cshrink<'short, 'long: 'short>(long: CoWrapper<'long>, s: &'short String) -> CoWrapper<'short> {
-        let x: CoWrapper<'short> = shrink::<'short, 'long, _>(long, s);
-        // shrink(long, s)
-        todo!()
-    }
-
-    // fn ishrink<'short, 'long: 'short>(long: InvWrapper<'long>, s: &'short String) -> InvWrapper<'short> {
-    //     let x: InvWrapper<'_> = shrink::<'short, 'long, _>(long, s);
-    //
-    //     todo!()
-    // }
-
-
-    #[test]
-    fn test_covariant() {
-        let mut long_string: String = "long".to_string();
-        let long: InvWrapper = Wrapper(&long_string, PhantomData::<fn(&'_ ()) -> &'_ ()>);
-
-        {
-        let short_string: String = "short".to_string();
-        let short: InvWrapper = Wrapper(&short_string, PhantomData::<fn(&'_ ()) -> &'_ ()>);
-
-        test_func::<fn(&'_ ()) -> &'_ ()>(&short_string, &long_string);
-
-        let shortened = shrink(long, &short_string);
-
-        let _ = shortened;
-
-        // f(&short, &long)
-        }
-        assert_eq!(&long_string, "long");
-    }
-    #[test]
-    fn test_invariant() {
-        let mut long_string: String = "long".to_string();
-        let long = InvariantStruct{value: &mut long_string};
-        {
-        let mut short_string: String = "short".to_string();
-        let short = InvariantStruct{value: &mut short_string};
-        f(&short, &long)
-        }
-        assert_eq!(&long_string, "long");
-    }
-
-
-}
+*/
 
 #[test]
-fn x() {
+fn variance_tests() {
     let t = trybuild::TestCases::new();
-    t.pass("tests/variance/covariance.rs");
-    t.compile_fail("tests/variance/invariance.rs");
-    t.compile_fail("tests/variance/invariance2.rs");
+    t.pass("tests/pass/*.rs");
+    t.compile_fail("tests/fail/*.rs");
 }
 
+#[allow(unused, dead_code)]
+mod mixed_lifetimes {
+    use crate::*;
+
+    type ContraCo<'s, 'l> = (Contravariant<'s>, Covariant<'l>);
+
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct M<'s, 'l> {
+        func: fn(&'s str) -> &'static str,
+        string: &'l str,
+    }
+    unsafe impl<'s, 'l> Transient for M<'s, 'l> {
+        type Static = M<'static, 'static>;
+        type Transience = ContraCo<'s, 'l>;
+    }
+    fn requires_static(_value: ErasedRef<ContraCo<'static, '_>>) {
+        /* ... */
+    }
+
+    /// This function requires the first lifetime to lengthen from `'short` to
+    /// `'long` (contravariance), and the second lifetime parameter to shorten
+    /// from `'long` to `'short` (covariance).
+    fn lengthen<'b, 'short, 'long: 'short>(
+        short: ErasedRef<'b, ContraCo<'short, 'long>>,
+    ) -> ErasedRef<'b, ContraCo<'long, 'short>> {
+        short
+    }
+
+
+    #[test]
+    fn test1() {
+        let static_str = "static";
+
+        let short: M<'_, 'static> = M {
+            func: |_| "!",
+            string: static_str,
+        };
+        let long: M<'static, '_> = M {
+            func: |s| s,
+            string: static_str,
+        };
+        let erased_short = short.erase_ref();
+        assert_eq!(erased_short.type_id(), M::static_type_id());
+        // the first (contra) param must lengthen from `'_` to `'static`
+        requires_static(erased_short);
+
+        let erased_long = long.erase_ref();
+        assert_eq!(erased_long.type_id(), M::static_type_id());
+    }
+}

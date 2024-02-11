@@ -1,7 +1,7 @@
 
-use transient_any::TransientAny;
+use transient::Transient;
 
-#[derive(Debug, Clone, PartialEq, Eq, TransientAny)]
+#[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct S<'a, T1, T2> {
     borrowed: &'a T1,
     owned: T2,
