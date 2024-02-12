@@ -229,6 +229,15 @@ impl_transience_tuples!{
 }*/
 
 
+pub unsafe trait SubTransience<Source: ?Sized>: Transience {}
+
+unsafe impl<R1, R2> SubTransience<R1> for R2
+where
+    R1: Transience + IntoTransience<R2>,
+    R2: Transience,
+{}
+
+
 /// Marker trait indicating that the implementing [`Transience`] can safely
 /// "downgrade" to the `Other` one.
 ///

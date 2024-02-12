@@ -4,10 +4,9 @@ use transient::*;
 // to lengthen from 'short to 'long, which should be *rejected* by
 // the borrow checker.
 fn lengthen<'b, 'short, 'long: 'short>(
-    short_short: ErasedRef<'b, (Contravariant<'short>, Covariant<'short>)>,
-    _long: &'long str
-) -> ErasedRef<'b, (Contravariant<'short>, Covariant<'long>)> {
-    short_short
+    short_short: &'b dyn Any<(Contravariant<'short>, Covariant<'short>)>,
+) -> &'b dyn Any<(Contravariant<'short>, Covariant<'long>)> {
+    short_short.transcend_ref()
 }
 
 fn main() {

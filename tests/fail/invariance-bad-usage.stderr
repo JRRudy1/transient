@@ -1,14 +1,14 @@
 error[E0597]: `string` does not live long enough
   --> tests/fail/invariance-bad-usage.rs:25:38
    |
-18 |     let long: ErasedInv<'static> = static_.into_transience();
-   |               ------------------ type annotation requires that `string` is borrowed for `'static`
+18 |     let long: Box<dyn Any<Inv<'static>>> = static_.transcend();
+   |               -------------------------- type annotation requires that `string` is borrowed for `'static`
 19 |     {
 20 |         let string = "short".to_string();
    |             ------ binding `string` declared here
 ...
 25 |         let shortened = shrink(long, &string);
    |                                      ^^^^^^^ borrowed value does not live long enough
-26 |         assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
+26 |         assert_eq!(shortened.static_type_id(), std::any::TypeId::of::<usize>())
 27 |     }
    |     - `string` dropped here while still borrowed

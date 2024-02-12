@@ -147,13 +147,9 @@ where
 pub unsafe trait Transient: Sized {
 
     /// Same as `Self` but with all lifetime parameters replaced by `'static`.
-    type Static: Static;
+    type Static: 'static;
 
     /// todo
     type Transience: Transience;
 
-    /// Get the [TypeId][`std::any::TypeId`] of the `'static`-ified type.
-    fn static_type_id() -> std::any::TypeId {
-        std::any::TypeId::of::<Self::Static>()
-    }
 }

@@ -8,14 +8,14 @@ use transient::*;
 /// If the given string lives longer than `long`, it should be allowed to
 /// shortened due to *covariance*; however the opposite should be rejected
 /// since `long` is *invariant* and cannot be shortened.
-fn shrink<'a>(long: ErasedInv<'a>, _short: &'a String) -> ErasedInv<'a> {
+fn shrink<'a>(long: Box<dyn Any<Inv<'a>>>, _short: &'a String) -> Box<dyn Any<Inv<'a>>> {
     long
 }
 
 /// This test should fail to compile
 fn main() {
-    let static_: Erased<Static> = 5_usize.erase();
-    let long: ErasedInv<'static> = static_.into_transience();
+    let static_: Box<dyn Any<()>> = Box::new(5_usize);
+    let long: Box<dyn Any<Inv<'static>>> = static_.transcend();
     {
         let string = "short".to_string();
         // `long` is `'static` but `string` is `'short`, so
@@ -23,6 +23,6 @@ fn main() {
         // `Erased<'short, Invariant<'short>>` which should be
         // rejected for an *invariant* wrapper
         let shortened = shrink(long, &string);
-        assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
+        assert_eq!(shortened.static_type_id(), std::any::TypeId::of::<usize>())
     }
 }

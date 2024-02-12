@@ -403,7 +403,7 @@ mod any;
 pub use crate::transient::Transient;
 
 #[doc(inline)]
-pub use crate::any::{Any, AnyOps};
+pub use crate::any::{Any, AnyOps, TypeId};
 
 pub use transience::{
     Transience, IntoTransience,

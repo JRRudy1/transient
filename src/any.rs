@@ -1,12 +1,12 @@
 
 use std::{
-    any::{TypeId}, mem,
+    mem,
 };
 use crate::{
     transient::Transient,
     transience::{Transience, IntoTransience, RecoverTransience}
 };
-pub use std::any::{Any as StdAny};
+pub use std::any::{Any as StdAny, TypeId};
 use std::fmt::{Formatter};
 
 
@@ -20,19 +20,19 @@ pub unsafe trait Any<R: Transience = ()>: Erase<R> {
 
 }
 
-impl<R: Transience> std::fmt::Debug for Box<dyn Any<R>> {
+impl<'a, R: Transience> std::fmt::Debug for Box<dyn Any<R> + 'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("Box<dyn Any<_>>({:?})", tid), f)
     }
 }
-impl<R: Transience> std::fmt::Debug for &dyn Any<R> {
+impl<'a, R: Transience> std::fmt::Debug for &(dyn Any<R> + 'a) {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("&dyn Any<_>({:?})", tid), f)
     }
 }
-impl<R: Transience> std::fmt::Debug for &mut dyn Any<R> {
+impl<'a, R: Transience> std::fmt::Debug for &mut (dyn Any<R> + 'a) {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("&mut dyn Any<_>({:?})", tid), f)
@@ -64,14 +64,14 @@ where
 {}
 
 
-pub trait AnyOps<R: Transience> {
+pub trait AnyOps<'a, R: Transience> {
 
-    fn type_id(&self) -> TypeId;
+    fn static_type_id(&self) -> TypeId;
 
     fn is<T>(&self) -> bool
     where
-        T: Transient,
-        T::Transience: RecoverTransience<R>;
+        T: Transient<Transience=R>;
+        // T::Transience: RecoverTransience<R>;
 
     fn downcast<T>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
     where
@@ -81,12 +81,12 @@ pub trait AnyOps<R: Transience> {
     fn downcast_ref<T>(&self) -> Option<&T>
     where
         T: Transient,
-        R: IntoTransience<T::Transience>;
+        T::Transience: RecoverTransience<R>;
 
     fn downcast_mut<T>(&mut self) -> Option<&mut T>
     where
         T: Transient,
-        R: IntoTransience<T::Transience>;
+        T::Transience: RecoverTransience<R>;
 
     fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
     where
@@ -104,16 +104,15 @@ pub trait AnyOps<R: Transience> {
         R: IntoTransience<R2>;
 }
 
-impl<'a, R: Transience> AnyOps<R> for dyn Any<R> + 'a {
+impl<'a, R: Transience> AnyOps<'a, R> for dyn Any<R> + 'a {
 
-    fn type_id(&self) -> TypeId {
+    fn static_type_id(&self) -> TypeId {
         unsafe { self.as_any().type_id() }
     }
 
     fn is<T>(&self) -> bool
     where
-        T: Transient,
-        T::Transience: RecoverTransience<R>,
+        T: Transient<Transience=R>,
     {
         unsafe { self.as_any().is::<T::Static>() }
     }
@@ -123,7 +122,7 @@ impl<'a, R: Transience> AnyOps<R> for dyn Any<R> + 'a {
         T: Transient,
         T::Transience: RecoverTransience<R>,
     {
-        if !AnyOps::is::<T>(&*self) {
+        if self.static_type_id() != TypeId::of::<T::Static>() {
             Err(self)
         } else {
             unsafe {
@@ -136,7 +135,7 @@ impl<'a, R: Transience> AnyOps<R> for dyn Any<R> + 'a {
     fn downcast_ref<T>(&self) -> Option<&T>
     where
         T: Transient,
-        R: IntoTransience<T::Transience>,
+        T::Transience: RecoverTransience<R>,
     {
         unsafe {
             let static_: &T::Static = self.as_any().downcast_ref()?;
@@ -146,7 +145,7 @@ impl<'a, R: Transience> AnyOps<R> for dyn Any<R> + 'a {
     fn downcast_mut<T>(&mut self) -> Option<&mut T>
     where
         T: Transient,
-        R: IntoTransience<T::Transience>,
+        T::Transience: RecoverTransience<R>,
     {
         unsafe {
             let static_: &mut T::Static = self.as_any_mut().downcast_mut()?;
@@ -178,11 +177,31 @@ impl<'a, R: Transience> AnyOps<R> for dyn Any<R> + 'a {
 
 #[test]
 #[allow(unused)]
-fn test_any() {
+fn test_any<'a>() {
     use crate::{Co, Contra, Inv};
 
     fn f<'a, 'b: 'a>(arg1: &'a dyn Any<Contra<'a>>) -> &'a dyn Any<Inv<'b>> {
         arg1.transcend_ref()
+    }
+    #[derive(Debug)]
+    pub struct Usize(usize);
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct UsizeRef<'a>(&'a usize);
+    #[derive(Debug, Clone, Copy)]
+    pub struct UsizeRefRef<'a, 'b>(&'a &'b usize);
+
+    unsafe impl Transient for Usize {
+        type Static = Usize;
+        type Transience = ();
+    }
+    unsafe impl<'a> Transient for UsizeRef<'a> {
+        type Static = UsizeRef<'static>;
+        type Transience = Co<'a>;
+    }
+    unsafe impl<'a, 'b> Transient for UsizeRefRef<'a, 'b> {
+        type Static = UsizeRefRef<'static, 'static>;
+        type Transience = (Co<'a>, Co<'b>);
     }
 
     // owned `usize`
@@ -199,16 +218,22 @@ fn test_any() {
     let _co: &dyn Any<Co> = &value;
     let _co: &dyn Any<Co> = &value;
     let _: &dyn Any<Inv> = _co.transcend_ref();
+    let _: &usize = _co.downcast_ref().unwrap();
 
     // owned `&usize`
-    let _: Box<dyn Any<Co>> = Box::new(&value);
-    let _: Box<dyn Any<Inv>> = Box::new(&value);
+    let r: &usize = &value;
+    let x: Box<dyn Any<Inv>> = Box::new(r);
+    // let _: Box<dyn Any<Inv>> = Box::new(&value);
+    let y: Box<&usize> = x.downcast().unwrap();
+    // let y: Box<&usize> = x.downcast::<&'_ usize>().unwrap();
 
     // borrowed `&usize`
     let valref = &5_usize;
     let _: &dyn Any<Inv> = &valref;
     let _co: &dyn Any<Co> = &valref;
-    let _: &dyn Any<Inv> = _co.transcend_ref();
+    let _dc: &&usize = _co.downcast_ref().unwrap();
+
+    // let _: &dyn Any<Inv> = _co.transcend_ref();
 
     // owned `&&usize`
     let _: Box<dyn Any<(Inv, Inv)>> = Box::new(&valref);
