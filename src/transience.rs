@@ -18,12 +18,13 @@ use std::{fmt::Debug, marker::PhantomData};
 pub unsafe trait Transience:
     Debug + Default
     + IntoTransience<Self>
-    + IntoTransience<Self::Frozen>
+    // + IntoTransience<Self::Frozen>
 {
-    type Frozen: Transience;
+    // type Frozen: Transience;
 }
 
-pub unsafe trait Variance<'a>: Transience<Frozen=Invariant<'a>> {}
+pub unsafe trait Variance<'a>: Transience {}
+// pub unsafe trait Variance<'a>: Transience<Frozen=Invariant<'a>> {}
 
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
@@ -36,7 +37,7 @@ pub unsafe trait Variance<'a>: Transience<Frozen=Invariant<'a>> {}
 /// accessing it when the wrapped type is `'static`.
 pub type Timeless = ();
 unsafe impl Transience for Timeless {
-    type Frozen = Self;
+    // type Frozen = Self;
 }
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
@@ -87,146 +88,14 @@ pub struct Contravariant<'a>( PhantomData<fn(&'a ())> );
 pub type Contra<'a> = Contravariant<'a>;
 
 
-unsafe impl<T1> Transience for (T1,)
-where
-    T1: Transience + IntoTransience<T1::Frozen>
-{
-    type Frozen = (T1::Frozen,);
-}
-
-unsafe impl<T1: Transience, T2: Transience> Transience for (T1, T2)
-where
-    T1: IntoTransience<T1::Frozen>,
-    T2: IntoTransience<T2::Frozen>,
-{
-    type Frozen = (T1::Frozen, T2::Frozen);
-}
-
-unsafe impl<T1, T2, T3> Transience for (T1, T2, T3)
-where
-    T1: Transience + IntoTransience<T1::Frozen>,
-    T2: Transience + IntoTransience<T2::Frozen>,
-    T3: Transience + IntoTransience<T3::Frozen>,
-{
-    type Frozen = (T1::Frozen, T2::Frozen, T3::Frozen);
-}
-
-unsafe impl<T1, T2, T3, T4> Transience for (T1, T2, T3, T4)
-where
-    T1: Transience + IntoTransience<T1::Frozen>,
-    T2: Transience + IntoTransience<T2::Frozen>,
-    T3: Transience + IntoTransience<T3::Frozen>,
-    T4: Transience + IntoTransience<T4::Frozen>,
-{
-    type Frozen = (T1::Frozen, T2::Frozen, T3::Frozen, T4::Frozen);
-}
-
-
-
 unsafe impl<'a> Variance<'a> for Invariant<'a> {}
-
-unsafe impl<'a> Transience for Invariant<'a> {
-    type Frozen = Invariant<'a>;
-}
+unsafe impl<'a> Transience for Invariant<'a> {}
 
 unsafe impl<'a> Variance<'a> for Covariant<'a> {}
-
-unsafe impl<'a> Transience for Covariant<'a> {
-    type Frozen = Invariant<'a>;
-}
+unsafe impl<'a> Transience for Covariant<'a> {}
 
 unsafe impl<'a> Variance<'a> for Contravariant<'a> {}
-
-unsafe impl<'a> Transience for Contravariant<'a> {
-    type Frozen = Invariant<'a>;
-}
-
-
-/*macro_rules! impl_variances {
-    { $( <$lt:lifetime> => $ty:ty );* $(;)? } =>
-    {$(
-        unsafe impl<$lt> Transience for $ty {
-            type Frozen = Invariant<$lt>;
-        }
-        unsafe impl<$lt> Variance<$lt> for $ty {}
-    )*}
-}
-impl_variances!{
-    <'a> => Invariant<'a>;
-    <'a> => Covariant<'a>;
-    <'a> => Contravariant<'a>;
-}*/
-/*
-macro_rules! impl_transience_tuples {
-    { $( <$($lt:lifetime),*> => ($($ty:ty ),* $(,)?) );* $(;)? } =>
-    {$(
-        unsafe impl<$($lt),*> Transience for ($($ty),* ,) {
-            type Frozen = ( $( Invariant<$lt> ),* ,);
-        }
-    )*}
-}
-
-impl_transience_tuples!{
-    // Invariant
-    <'a> => (Invariant<'a>,);
-    <'a, 'b> => (Invariant<'a>, Invariant<'b>);
-    <'a, 'b, 'c> => (Invariant<'a>, Invariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c, 'd> => (Invariant<'a>, Invariant<'b>, Invariant<'c>, Invariant<'d>);
-    // Covariant
-    <'a> => (Covariant<'a>,);
-    <'a, 'b> => (Covariant<'a>, Covariant<'b>);
-    <'a, 'b, 'c> => (Covariant<'a>, Covariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c, 'd> => (Covariant<'a>, Covariant<'b>, Covariant<'c>, Covariant<'d>);
-    // // Contravariant
-    <'a> => (Contravariant<'a>,);
-    <'a, 'b> => (Contravariant<'a>, Contravariant<'b>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Contravariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c, 'd> => (Contravariant<'a>, Contravariant<'b>, Contravariant<'c>, Contravariant<'d>);
-
-    // Mixed: 1*Inv + 1*Co
-    <'a, 'b> => (Invariant<'a>, Covariant<'b>);
-    <'a, 'b> => (Covariant<'a>, Invariant<'b>);
-    // Mixed: 1*Inv + 2*Co
-    <'a, 'b, 'c> => (Invariant<'a>, Covariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Invariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Covariant<'b>, Invariant<'c>);
-    // Mixed: 2*Inv + 1*Co
-    <'a, 'b, 'c> => (Covariant<'a>, Invariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c> => (Invariant<'a>, Covariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c> => (Invariant<'a>, Invariant<'b>, Covariant<'c>);
-
-    // Mixed: 1*Inv + 1*Contra
-    <'a, 'b> => (Invariant<'a>, Contravariant<'b>);
-    <'a, 'b> => (Contravariant<'a>, Invariant<'b>);
-    // Mixed: 1*Inv + 2*Contra
-    <'a, 'b, 'c> => (Invariant<'a>, Contravariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Invariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Contravariant<'b>, Invariant<'c>);
-    // Mixed: 2*Inv + 1*Contra
-    <'a, 'b, 'c> => (Contravariant<'a>, Invariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c> => (Invariant<'a>, Contravariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c> => (Invariant<'a>, Invariant<'b>, Contravariant<'c>);
-
-    // Mixed: 1*Co + 1*Contra
-    <'a, 'b> => (Covariant<'a>, Contravariant<'b>);
-    <'a, 'b> => (Contravariant<'a>, Covariant<'b>);
-    // Mixed: 1*Co + 2*Contra
-    <'a, 'b, 'c> => (Covariant<'a>, Contravariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Covariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Contravariant<'b>, Covariant<'c>);
-    // Mixed: 2*Co + 1*Contra
-    <'a, 'b, 'c> => (Contravariant<'a>, Covariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Contravariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Covariant<'b>, Contravariant<'c>);
-
-    // Mixed: 1*inv + 1*Co + 1*Contra
-    <'a, 'b, 'c> => (Invariant<'a>, Covariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Invariant<'a>, Contravariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Invariant<'b>, Contravariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Invariant<'b>, Covariant<'c>);
-    <'a, 'b, 'c> => (Covariant<'a>, Contravariant<'b>, Invariant<'c>);
-    <'a, 'b, 'c> => (Contravariant<'a>, Covariant<'b>, Invariant<'c>);
-}*/
+unsafe impl<'a> Transience for Contravariant<'a> {}
 
 
 pub unsafe trait SubTransience<Source: ?Sized>: Transience {}
@@ -247,73 +116,15 @@ where
 /// of a *contravariant* type) can lead to undefined behavior.
 pub unsafe trait IntoTransience<Other: ?Sized> {}
 
-
-pub unsafe trait RecoverTransience<From> {}
-unsafe impl<V: Transience> RecoverTransience<V> for Timeless {}
-unsafe impl<'a> RecoverTransience<Inv<'a>> for Inv<'a> {}
-unsafe impl<'a> RecoverTransience<Inv<'a>> for Co<'a> {}
-unsafe impl<'a> RecoverTransience<Inv<'a>> for Contra<'a> {}
-unsafe impl<'a, 'long: 'a> RecoverTransience<Co<'long>> for Co<'a> {}
-unsafe impl<'short, 'a: 'short> RecoverTransience<Contra<'short>> for Contra<'a> {}
-
-
-unsafe impl<A1, A2>
-    RecoverTransience<(A2,)> for (A1,)
-where
-    A1: RecoverTransience<A2>,
-{}
-
-unsafe impl<A1, A2, B1, B2>
-    RecoverTransience<(A2, B2)> for (A1, B1)
-where
-    A1: RecoverTransience<A2>,
-    B1: RecoverTransience<B2>,
-{}
-
-unsafe impl<A1, A2, B1, B2, C1, C2>
-    RecoverTransience<(A2, B2, C2)> for (A1, B1, C1)
-where
-    A1: RecoverTransience<A2>,
-    B1: RecoverTransience<B2>,
-    C1: RecoverTransience<C2>,
-{}
-
-unsafe impl<A1, A2, B1, B2, C1, C2, D1, D2>
-    RecoverTransience<(A2, B2, C2, D2)> for (A1, B1, C1, D1)
-where
-    A1: RecoverTransience<A2>,
-    B1: RecoverTransience<B2>,
-    C1: RecoverTransience<C2>,
-    D1: RecoverTransience<D2>,
-{}
-
-
-
-
 /// `Timeless` can safely converted to any other `Transience`.
 unsafe impl<V: Transience + ?Sized> IntoTransience<V> for Timeless {}
-
-
-
-
-// /// Any `Variance` can recovered from any other `Variance` with the same lifetime.
-// // This doesn't exhaustively reflect reality (e.g. it would be hard to justify
-// // `Co<'a>` -> `Contra<'a>` being a valid recovery), but the states required for
-// // the edge cases would not be reachable from safe code anyways.
-// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Inv<'a> {}
-// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Co<'a> {}
-// unsafe impl<'a, V: Variance<'a>> RecoverTransience<V> for Contra<'a> {}
-
 
 /// `Covariant` can shorten its lifetime.
 unsafe impl<'short, 'long: 'short> IntoTransience<Co<'short>> for Co<'long> {}
 
-
-
 /// `Covariant` can shorten its lifetime and/or become `Invariant`.
 unsafe impl<'short, 'long: 'short>
     IntoTransience<Inv<'short>> for Co<'long> {}
-
 
 /// `Contravariant` can lengthen its lifetime.
 unsafe impl<'short, 'long: 'short>
@@ -323,40 +134,43 @@ unsafe impl<'short, 'long: 'short>
 unsafe impl<'short, 'long: 'short>
     IntoTransience<Inv<'long>> for Contra<'short> {}
 
-
-/// `Contravariant` can lengthen its lifetime.
+/// `Invariant` can stay the safe.
 unsafe impl<'a> IntoTransience<Inv<'a>> for Inv<'a> {}
 
 
+pub unsafe trait RecoverTransience<From> {}
 
-unsafe impl<A1: ?Sized, A2: ?Sized>
-    IntoTransience<(A2,)> for (A1,)
-where
-    A1: IntoTransience<A2>,
-{}
+unsafe impl<V: Transience> RecoverTransience<V> for Timeless {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Inv<'a> {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Co<'a> {}
+unsafe impl<'a> RecoverTransience<Inv<'a>> for Contra<'a> {}
+unsafe impl<'a, 'long: 'a> RecoverTransience<Co<'long>> for Co<'a> {}
+unsafe impl<'short, 'a: 'short> RecoverTransience<Contra<'short>> for Contra<'a> {}
 
-unsafe impl<A1, B1: ?Sized, A2, B2: ?Sized>
-    IntoTransience<(A2, B2)> for (A1, B1)
-where
-    A1: IntoTransience<A2>,
-    B1: IntoTransience<B2>,
-{}
+macro_rules! impl_tuple {
 
-unsafe impl<A1, B1, C1: ?Sized, A2, B2, C2: ?Sized>
-    IntoTransience<(A2, B2, C2)> for (A1, B1, C1)
-where
-    // (A1, B1, C1): Transience,
-    A1: IntoTransience<A2>,
-    B1: IntoTransience<B2>,
-    C1: IntoTransience<C2>,
-{}
+    { ($($src:ident),*) => ($($dst:ident),*) } => {
 
-unsafe impl<A1, B1, C1, D1: ?Sized, A2, B2, C2, D2: ?Sized>
-    IntoTransience<(A2, B2, C2, D2)> for (A1, B1, C1, D1)
-where
-    // (A1, B1, C1, D1): Transience,
-    A1: IntoTransience<A2>,
-    B1: IntoTransience<B2>,
-    C1: IntoTransience<C2>,
-    D1: IntoTransience<D2>,
-{}
+        unsafe impl<$($src),*> Transience for ($($src),*,)
+        where
+            $( $src: Transience ),*
+        {}
+
+        unsafe impl<$($src),*, $($dst),*>
+            IntoTransience<($($dst),*,)> for ($($src),*,)
+        where
+            $( $src: IntoTransience<$dst> ),*
+        {}
+
+        unsafe impl<$($src),*, $($dst),*>
+            RecoverTransience<($($dst),*,)> for ($($src),*,)
+        where
+            $( $src: RecoverTransience<$dst> ),*
+        {}
+    }
+}
+
+impl_tuple!{ (A1) => (A2) }
+impl_tuple!{ (A1, B1) => (A2, B2) }
+impl_tuple!{ (A1, B1, C1) => (A2, B2, C2) }
+impl_tuple!{ (A1, B1, C1, D1) => (A2, B2, C2, D2) }
