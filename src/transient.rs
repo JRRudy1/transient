@@ -3,14 +3,6 @@ use crate::{
     transience::Transience,
 };
 
-
-pub trait Static: Transient<Static=Self> + Sized + 'static {}
-
-impl<T: ?Sized> Static for T
-where
-    T: Transient<Static=Self> + 'static
-{}
-
 /// Unsafe trait for converting the lifetime parameters of a type to (and from)
 /// `'static` so that it can be cast to `dyn Any`. This trait can be derived
 /// using the [`Transient` derive macro].
@@ -144,12 +136,15 @@ where
 /// [`erase_mut`]: Transient::erase_mut
 /// [`Transient` derive macro]: transient_derive::Transient
 /// [Subtyping and Variance]: https://doc.rust-lang.org/nomicon/subtyping.html
-pub unsafe trait Transient: Sized {
+pub unsafe trait Transient {
 
     /// Same as `Self` but with all lifetime parameters replaced by `'static`.
     type Static: Static;
 
     /// todo
     type Transience: Transience;
-
 }
+
+pub trait Static: Transient<Static=Self> + 'static {}
+
+impl<T: Transient<Static=Self> + 'static + ?Sized> Static for T {}

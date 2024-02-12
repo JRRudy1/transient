@@ -1,48 +1,41 @@
 
-use std::{
-    mem, fmt,
-};
+use std::{mem, fmt};
 use crate::{
     transient::Transient,
-    transience::{Transience, RecoverTransience, SubTransience}
+    transience::{Transience, CanRecoverFrom, CanTranscendTo}
 };
+
 pub use std::any::{Any as StdAny, TypeId};
 
-
+/// Main `Any` trait for use as a trait object.
+pub unsafe trait Any<R: Transience = ()>: Erase<R> {
+    fn static_type_id(&self) -> TypeId;
+}
+/// Alternative namespace for `Any`. This could be merged with `Any`, but
+/// hiding these unsafe methods from the `Any` namespace seems better.
 pub unsafe trait Erase<R: Transience = ()> {
     unsafe fn into_any(self: Box<Self>) -> Box<dyn StdAny>;
     unsafe fn as_any(&self) -> &dyn StdAny;
     unsafe fn as_any_mut(&mut self) -> &mut dyn StdAny;
 }
 
-pub unsafe trait Any<R: Transience = ()>: Erase<R> {
 
-}
-
-impl<'a, R: Transience> fmt::Debug for Box<dyn Any<R> + 'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        let tid = unsafe { self.as_any().type_id() };
-        std::fmt::Debug::fmt(&format!("Box<dyn Any<_>>({:?})", tid), f)
+unsafe impl<T, R> Any<R> for T
+where
+    R: Transience,
+    T: Transient,
+    T::Transience: CanTranscendTo<R>
+{
+    fn static_type_id(&self) -> TypeId {
+        TypeId::of::<T::Static>()
     }
 }
-impl<'a, R: Transience> fmt::Debug for &(dyn Any<R> + 'a) {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        let tid = unsafe { self.as_any().type_id() };
-        std::fmt::Debug::fmt(&format!("&dyn Any<_>({:?})", tid), f)
-    }
-}
-impl<'a, R: Transience> fmt::Debug for &mut (dyn Any<R> + 'a) {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        let tid = unsafe { self.as_any().type_id() };
-        std::fmt::Debug::fmt(&format!("&mut dyn Any<_>({:?})", tid), f)
-    }
-}
-
 
 unsafe impl<T, R> Erase<R> for T
 where
-    T: Transient + fmt::Debug,
-    R: SubTransience<T::Transience>,
+    R: Transience,
+    T: Transient,
+    T::Transience: CanTranscendTo<R>
 {
     unsafe fn into_any(self: Box<Self>) -> Box<dyn StdAny> {
         mem::transmute::<Box<T>, Box<T::Static>>(self)
@@ -55,67 +48,70 @@ where
     }
 }
 
-unsafe impl<T, R> Any<R> for T
-where
-    R: SubTransience<T::Transience>,
-    T: Transient + std::fmt::Debug,
-{}
 
+/// Extension trait used to define methods on the `dyn Any<_>` trait object.
+pub trait AnyOps<R: Transience> {
 
-pub trait AnyOps<'a, R: Transience> {
+    fn is<T: Transient>(&self) -> bool;
 
-    fn static_type_id(&self) -> TypeId;
+    fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
+        where T::Transience: CanRecoverFrom<R>;
 
-    fn is<T>(&self) -> bool
-    where
-        T: Transient<Transience=R>;
-        // T::Transience: RecoverTransience<R>;
+    fn downcast_ref<T: Transient>(&self) -> Option<&T>
+        where T::Transience: CanRecoverFrom<R>;
 
-    fn downcast<T>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
-    where
-        T: Transient,
-        T::Transience: RecoverTransience<R>;
+    fn downcast_mut<T: Transient>(&mut self) -> Option<&mut T>
+        where T::Transience: CanRecoverFrom<R>;
 
-    fn downcast_ref<T>(&self) -> Option<&T>
-    where
-        T: Transient,
-        T::Transience: RecoverTransience<R>;
-
-    fn downcast_mut<T>(&mut self) -> Option<&mut T>
-    where
-        T: Transient,
-        T::Transience: RecoverTransience<R>;
-
+    /// Upcast to another `Transience` in compliance with sub-typing relationships.
     fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: SubTransience<R>;
+        where R: CanTranscendTo<R2>;
 
-    fn transcend_ref<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: SubTransience<R>;
+    /// Upcast to another `Transience` in compliance with sub-typing relationships.
+    fn transcend_ref<R2: Transience>(&self) -> &dyn Any<R2>
+        where R: CanTranscendTo<R2>;
 
+    /// Upcast to another `Transience` in compliance with sub-typing relationships.
     fn transcend_mut<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: SubTransience<R>;
+        where R: CanTranscendTo<R2>;
+
+    /// Cast to another `Transience` without enforcing sub-typing relationships.
+    ///
+    /// # Safety
+    /// An invalid transition must not be performed unless external invariants
+    /// guarantee that the type is valid for the new `Transience`.
+    unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
+        where R2: Transience;
+
+    /// Cast to another `Transience` without enforcing sub-typing relationships.
+    ///
+    /// # Safety
+    /// An invalid transition must not be performed unless external invariants
+    /// guarantee that the type is valid for the new `Transience`.
+    unsafe fn transcend_ref_unbounded<R2>(&self) -> &dyn Any<R2>
+        where R2: Transience;
+
+    /// Cast to another `Transience` without enforcing sub-typing relationships.
+    ///
+    /// # Safety
+    /// An invalid transition must not be performed unless external invariants
+    /// guarantee that the type is valid for the new `Transience`.
+    unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
+        where R2: Transience;
 }
 
-impl<'a, R: Transience> AnyOps<'a, R> for dyn Any<R> + 'a {
-
-    fn static_type_id(&self) -> TypeId {
-        unsafe { self.as_any().type_id() }
+impl<'a, R> AnyOps<R> for (dyn Any<R> + 'a)
+where
+    R: Transience
+{
+    /// Returns `true` if the inner type is the same as `T::Static`.
+    fn is<T: Transient>(&self) -> bool {
+        self.static_type_id() == TypeId::of::<T::Static>()
     }
 
-    fn is<T>(&self) -> bool
+    fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
     where
-        T: Transient<Transience=R>,
-    {
-        unsafe { self.as_any().is::<T::Static>() }
-    }
-
-    fn downcast<T>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
-    where
-        T: Transient,
-        T::Transience: RecoverTransience<R>,
+        T::Transience: CanRecoverFrom<R>,
     {
         if self.static_type_id() != TypeId::of::<T::Static>() {
             Err(self)
@@ -127,47 +123,81 @@ impl<'a, R: Transience> AnyOps<'a, R> for dyn Any<R> + 'a {
             }
         }
     }
-    fn downcast_ref<T>(&self) -> Option<&T>
+    fn downcast_ref<T: Transient>(&self) -> Option<&T>
     where
-        T: Transient,
-        T::Transience: RecoverTransience<R>,
+        T::Transience: CanRecoverFrom<R>,
     {
         unsafe {
             let static_: &T::Static = self.as_any().downcast_ref()?;
             Some( mem::transmute::<&T::Static, &T>(static_) )
         }
     }
-    fn downcast_mut<T>(&mut self) -> Option<&mut T>
+    fn downcast_mut<T: Transient>(&mut self) -> Option<&mut T>
     where
-        T: Transient,
-        T::Transience: RecoverTransience<R>,
+        T::Transience: CanRecoverFrom<R>,
     {
         unsafe {
             let static_: &mut T::Static = self.as_any_mut().downcast_mut()?;
             Some( mem::transmute::<&mut T::Static, &mut T>(static_) )
         }
     }
-
     fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
     where
-        R2: SubTransience<R>
+        R: CanTranscendTo<R2>
     {
         unsafe { mem::transmute(self) }
     }
     fn transcend_ref<R2>(&self) -> &dyn Any<R2>
     where
-        R2: SubTransience<R>
+        R: CanTranscendTo<R2>
     {
         unsafe { mem::transmute(self) }
     }
     fn transcend_mut<R2>(&mut self) -> &mut dyn Any<R2>
     where
-        R2: SubTransience<R>
+        R: CanTranscendTo<R2>
     {
         unsafe { mem::transmute(self) }
     }
-
+    unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
+    where
+        R2: Transience
+    {
+        unsafe { mem::transmute(self) }
+    }
+    unsafe fn transcend_ref_unbounded<R2: Transience>(&self) -> &dyn Any<R2>
+    where
+        R2: Transience
+    {
+        unsafe { mem::transmute(self) }
+    }
+    unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
+    where
+        R2: Transience
+    {
+        unsafe { mem::transmute(self) }
+    }
 }
+
+impl<'a, R: Transience> fmt::Debug for Box<dyn Any<R> + 'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let tid = unsafe { self.as_any().type_id() };
+        std::fmt::Debug::fmt(&format!("Box<dyn Any<_>>({:?})", tid), f)
+    }
+}
+impl<'a, R: Transience> fmt::Debug for &(dyn Any<R> + 'a) {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let tid = unsafe { self.as_any().type_id() };
+        std::fmt::Debug::fmt(&format!("&dyn Any<_>({:?})", tid), f)
+    }
+}
+impl<'a, R: Transience> fmt::Debug for &mut (dyn Any<R> + 'a) {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let tid = unsafe { self.as_any().type_id() };
+        std::fmt::Debug::fmt(&format!("&mut dyn Any<_>({:?})", tid), f)
+    }
+}
+
 
 
 #[test]
@@ -176,6 +206,13 @@ fn test_any<'a>() {
     use crate::{Co, Contra, Inv};
 
     fn f<'a, 'b: 'a>(arg1: &'a dyn Any<Contra<'a>>) -> &'a dyn Any<Inv<'b>> {
+        // R                  R2
+        // Contra<'short> into Inv<'long>
+        // Contra<'short>: SubTransience<Inv<'long>>
+        // Inv<'long>: SuperTransience<Contra<'short>>
+        // R: SubTransience<R2>
+        // R2: SuperTransience<R>
+
         arg1.transcend_ref()
     }
     #[derive(Debug)]

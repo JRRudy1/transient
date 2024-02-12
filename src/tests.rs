@@ -1,7 +1,7 @@
 
 /// Tests for a simple struct with no generic parameters.
 mod double {
-    use crate::{Invariant, Transient};
+    use crate::{Inv, Transient};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T1, T2> {
@@ -11,7 +11,7 @@ mod double {
     }
     unsafe impl<'a, T1: 'static, T2: 'static> Transient for S<'a, T1, T2> {
         type Static = S<'static, T1, T2>;
-        type Transience = Invariant<'a>;
+        type Transience = Inv<'a>;
     }
 
 }
@@ -68,6 +68,7 @@ mod basic {
 /// Tests for a struct with generic parameters.
 mod generics {
     use crate::*;
+    use crate::any::*;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
@@ -75,7 +76,7 @@ mod generics {
     }
     unsafe impl<'a, T: 'static> Transient for S<'a, T> {
         type Static = S<'static, T>;
-        type Transience = Invariant<'a>;
+        type Transience = Inv<'a>;
     }
     type SS<'a> = S<'a, String>;
 
@@ -93,7 +94,7 @@ mod generics {
     pub(super) fn test_ref() {
         let value = "qwer".to_string();
         let original = SS{value: &value};
-        let erased: &dyn Any<_> = &original;
+        let erased: &dyn Any<Inv> = &original;
         assert_eq!(erased.static_type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_ref::<SS>().unwrap();
         assert_eq!(restored, &original);
@@ -103,7 +104,7 @@ mod generics {
     pub(super) fn test_mut() {
         let value = "qwer".to_string();
         let mut original = SS{value: &value};
-        let erased: &mut dyn Any<_> = &mut original;
+        let erased: &mut dyn Any<Inv> = &mut original;
         assert_eq!(erased.static_type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_mut::<SS>().unwrap().clone();
         assert_eq!(restored, original);
@@ -115,9 +116,9 @@ mod generics {
 #[allow(unused)]
 mod multi_lifetime {
     use std::any::Any;
-    use crate::{transient::Transient, Transience, Invariant, Covariant};
+    use crate::{transient::Transient, Transience, Inv, Covariant};
 
-    pub type InvInv<'a, 'b> = (Invariant<'a>, Invariant<'b>);
+    pub type InvInv<'a, 'b> = (Inv<'a>, Inv<'b>);
     pub type CoCo<'a, 'b> = (Covariant<'a>, Covariant<'b>);
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,7 +207,7 @@ fn variance_tests() {
 mod mixed_lifetimes {
     use crate::*;
 
-    type ContraCo<'s, 'l> = (Contravariant<'s>, Covariant<'l>);
+    type ContraCo<'s, 'l> = (Contra<'s>, Co<'l>);
 
 
     #[derive(Debug, Clone, PartialEq, Eq)]

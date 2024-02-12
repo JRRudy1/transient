@@ -40,7 +40,7 @@ use syn::{
 /// # struct S<'a, T> {value: &'a T}
 /// unsafe impl<'a, T: 'static> transient::Transient for S<'a, T> {
 ///     type Static = S<'static, T>;
-///     type Transience = transient::Invariant<'a>;
+///     type Transience = transient::Inv<'a>;
 /// }
 /// ```
 /// [`Transient`]: ../transient/trait.Transient.html

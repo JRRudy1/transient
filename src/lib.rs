@@ -406,8 +406,7 @@ pub use crate::transient::Transient;
 pub use crate::any::{Any, AnyOps, TypeId};
 
 pub use transience::{
-    Transience, IntoTransience, SubTransience,
-    Invariant, Covariant, Contravariant,
+    Transience, CanRecoverFrom, CanTranscendTo,
     Timeless, Co, Contra, Inv,
 };
 
@@ -425,27 +424,27 @@ macro_rules! impl_primatives {
         }
         unsafe impl<'a> Transient for &'a $ty {
             type Static = &'static $ty;
-            type Transience = Covariant<'a>;
+            type Transience = Co<'a>;
         }
         unsafe impl<'a> Transient for &'a mut $ty {
             type Static = &'static mut $ty;
-            type Transience = Covariant<'a>;
+            type Transience = Co<'a>;
         }
         unsafe impl<'a, 'b: 'a> Transient for &'a &'b $ty {
             type Static = &'static &'static $ty;
-            type Transience = (Covariant<'a>, Covariant<'b>);
+            type Transience = (Co<'a>, Co<'b>);
         }
         unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b $ty {
             type Static = &'static mut &'static $ty;
-            type Transience = (Covariant<'a>, Invariant<'b>);
+            type Transience = (Co<'a>, Inv<'b>);
         }
         unsafe impl<'a, 'b: 'a> Transient for &'a &'b mut $ty {
             type Static = &'static &'static mut $ty;
-            type Transience = (Covariant<'a>, Covariant<'b>);
+            type Transience = (Co<'a>, Co<'b>);
         }
         unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b mut $ty {
             type Static = &'static mut &'static $ty;
-            type Transience = (Covariant<'a>, Invariant<'b>);
+            type Transience = (Co<'a>, Inv<'b>);
         }
         )*
     }
@@ -483,9 +482,9 @@ unsafe impl Transient for Box<dyn std::any::Any> {
 }
 unsafe impl<'a> Transient for &'a dyn std::any::Any {
     type Static = &'static dyn std::any::Any;
-    type Transience = Covariant<'a>;
+    type Transience = Co<'a>;
 }
 unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
     type Static = &'static mut dyn std::any::Any;
-    type Transience = Covariant<'a>;
+    type Transience = Co<'a>;
 }
