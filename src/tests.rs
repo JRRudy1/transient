@@ -49,7 +49,7 @@ mod basic {
         let value = "qwer".to_string();
         let original = S{value: &value};
         let erased: &dyn Any<Co> = &original;
-        assert_eq!(erased.static_type_id(), TypeId::of::<S>());
+        assert_eq!(erased.type_id(), TypeId::of::<S>());
         let restored = erased.downcast_ref::<S>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -58,7 +58,7 @@ mod basic {
         let value = "qwer".to_string();
         let mut original = S{value: &value};
         let erased: &mut dyn Any<Co> = &mut original;
-        assert_eq!(erased.static_type_id(), TypeId::of::<S>());
+        assert_eq!(erased.type_id(), TypeId::of::<S>());
         let restored = erased.downcast_mut::<S>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -85,7 +85,7 @@ mod generics {
         let value = "qwer".to_string();
         let original = SS{value: &value};
         let erased: Box<dyn Any<Inv>> = Box::new(original.clone());
-        assert_eq!(erased.static_type_id(), TypeId::of::<SS>());
+        assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast::<SS>().unwrap();
         assert_eq!(*restored, original);
     }
@@ -95,7 +95,7 @@ mod generics {
         let value = "qwer".to_string();
         let original = SS{value: &value};
         let erased: &dyn Any<Inv> = &original;
-        assert_eq!(erased.static_type_id(), TypeId::of::<SS>());
+        assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_ref::<SS>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -105,7 +105,7 @@ mod generics {
         let value = "qwer".to_string();
         let mut original = SS{value: &value};
         let erased: &mut dyn Any<Inv> = &mut original;
-        assert_eq!(erased.static_type_id(), TypeId::of::<SS>());
+        assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_mut::<SS>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -246,11 +246,11 @@ mod mixed_lifetimes {
         };
         let erased_short: Box<dyn Any<ContraCo>> = Box::new(short);
         // let erased_short = short.erase_ref();
-        assert_eq!(erased_short.static_type_id(), TypeId::of::<M>());
+        assert_eq!(erased_short.type_id(), TypeId::of::<M>());
         // the first (contra) param must lengthen from `'_` to `'static`
         requires_static(&*erased_short);
 
         let erased_long: &dyn Any<ContraCo> = &long;
-        assert_eq!(erased_long.static_type_id(), TypeId::of::<M>());
+        assert_eq!(erased_long.type_id(), TypeId::of::<M>());
     }
 }

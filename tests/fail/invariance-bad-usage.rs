@@ -23,6 +23,6 @@ fn main() {
         // `Erased<'short, Invariant<'short>>` which should be
         // rejected for an *invariant* wrapper
         let shortened = shrink(long, &string);
-        assert_eq!(shortened.static_type_id(), std::any::TypeId::of::<usize>())
+        assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
     }
 }

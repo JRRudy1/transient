@@ -405,6 +405,7 @@ pub use crate::transient::Transient;
 #[doc(inline)]
 pub use crate::any::{Any, AnyOps, TypeId};
 
+#[doc(inline)]
 pub use transience::{
     Transience, CanRecoverFrom, CanTranscendTo,
     Timeless, Co, Contra, Inv,

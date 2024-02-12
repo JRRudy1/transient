@@ -9,6 +9,6 @@ error[E0597]: `string` does not live long enough
 ...
 25 |         let shortened = shrink(long, &string);
    |                                      ^^^^^^^ borrowed value does not live long enough
-26 |         assert_eq!(shortened.static_type_id(), std::any::TypeId::of::<usize>())
+26 |         assert_eq!(shortened.type_id(), std::any::TypeId::of::<usize>())
 27 |     }
    |     - `string` dropped here while still borrowed
