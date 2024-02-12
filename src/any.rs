@@ -1,13 +1,12 @@
 
 use std::{
-    mem,
+    mem, fmt,
 };
 use crate::{
     transient::Transient,
-    transience::{Transience, IntoTransience, RecoverTransience}
+    transience::{Transience, RecoverTransience, SubTransience}
 };
 pub use std::any::{Any as StdAny, TypeId};
-use std::fmt::{Formatter};
 
 
 pub unsafe trait Erase<R: Transience = ()> {
@@ -20,30 +19,30 @@ pub unsafe trait Any<R: Transience = ()>: Erase<R> {
 
 }
 
-impl<'a, R: Transience> std::fmt::Debug for Box<dyn Any<R> + 'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, R: Transience> fmt::Debug for Box<dyn Any<R> + 'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("Box<dyn Any<_>>({:?})", tid), f)
     }
 }
-impl<'a, R: Transience> std::fmt::Debug for &(dyn Any<R> + 'a) {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, R: Transience> fmt::Debug for &(dyn Any<R> + 'a) {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("&dyn Any<_>({:?})", tid), f)
     }
 }
-impl<'a, R: Transience> std::fmt::Debug for &mut (dyn Any<R> + 'a) {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, R: Transience> fmt::Debug for &mut (dyn Any<R> + 'a) {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         let tid = unsafe { self.as_any().type_id() };
         std::fmt::Debug::fmt(&format!("&mut dyn Any<_>({:?})", tid), f)
     }
 }
 
 
-unsafe impl<T, R: Transience> Erase<R> for T
+unsafe impl<T, R> Erase<R> for T
 where
-    T: Transient + std::fmt::Debug,
-    T::Transience: IntoTransience<R>,
+    T: Transient + fmt::Debug,
+    R: SubTransience<T::Transience>,
 {
     unsafe fn into_any(self: Box<Self>) -> Box<dyn StdAny> {
         mem::transmute::<Box<T>, Box<T::Static>>(self)
@@ -58,9 +57,8 @@ where
 
 unsafe impl<T, R> Any<R> for T
 where
-    R: Transience,
+    R: SubTransience<T::Transience>,
     T: Transient + std::fmt::Debug,
-    T::Transience: IntoTransience<R>,
 {}
 
 
@@ -90,18 +88,15 @@ pub trait AnyOps<'a, R: Transience> {
 
     fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
     where
-        R2: Transience,
-        R: IntoTransience<R2>;
+        R2: SubTransience<R>;
 
     fn transcend_ref<R2>(&self) -> &dyn Any<R2>
     where
-        R2: Transience,
-        R: IntoTransience<R2>;
+        R2: SubTransience<R>;
 
     fn transcend_mut<R2>(&mut self) -> &mut dyn Any<R2>
-        where
-        R2: Transience,
-        R: IntoTransience<R2>;
+    where
+        R2: SubTransience<R>;
 }
 
 impl<'a, R: Transience> AnyOps<'a, R> for dyn Any<R> + 'a {
@@ -153,21 +148,21 @@ impl<'a, R: Transience> AnyOps<'a, R> for dyn Any<R> + 'a {
         }
     }
 
-    fn transcend<R2: Transience>(self: Box<Self>) -> Box<dyn Any<R2>>
+    fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
     where
-        R: IntoTransience<R2>
+        R2: SubTransience<R>
     {
         unsafe { mem::transmute(self) }
     }
-    fn transcend_ref<R2: Transience>(&self) -> &dyn Any<R2>
+    fn transcend_ref<R2>(&self) -> &dyn Any<R2>
     where
-        R: IntoTransience<R2>
+        R2: SubTransience<R>
     {
         unsafe { mem::transmute(self) }
     }
-    fn transcend_mut<R2: Transience>(&mut self) -> &mut dyn Any<R2>
+    fn transcend_mut<R2>(&mut self) -> &mut dyn Any<R2>
     where
-        R: IntoTransience<R2>
+        R2: SubTransience<R>
     {
         unsafe { mem::transmute(self) }
     }
@@ -215,7 +210,6 @@ fn test_any<'a>() {
     // borrowed `usize`
     let _: &dyn StdAny = &value;
     let _: &dyn Any = &value;
-    let _co: &dyn Any<Co> = &value;
     let _co: &dyn Any<Co> = &value;
     let _: &dyn Any<Inv> = _co.transcend_ref();
     let _: &usize = _co.downcast_ref().unwrap();

@@ -147,7 +147,7 @@ where
 pub unsafe trait Transient: Sized {
 
     /// Same as `Self` but with all lifetime parameters replaced by `'static`.
-    type Static: 'static;
+    type Static: Static;
 
     /// todo
     type Transience: Transience;

@@ -406,7 +406,7 @@ pub use crate::transient::Transient;
 pub use crate::any::{Any, AnyOps, TypeId};
 
 pub use transience::{
-    Transience, IntoTransience,
+    Transience, IntoTransience, SubTransience,
     Invariant, Covariant, Contravariant,
     Timeless, Co, Contra, Inv,
 };
