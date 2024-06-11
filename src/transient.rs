@@ -1,7 +1,6 @@
 //! Defines the [`Transient`] trait.
-use crate::{
-    transience::Transience,
-};
+use crate::transience::{Transience, Co, Inv, CanTranscendTo};
+
 
 /// Unsafe trait for converting the lifetime parameters of a type to (and from)
 /// `'static` so that it can be cast to `dyn Any`. This trait can be derived
@@ -31,7 +30,7 @@ use crate::{
 /// `Self` type but with all lifetime parameters replaced by `'static`.
 /// - The [`Transience`][Self::Transience] associated type must either correspond
 /// to the true variance of the type with respect to `'src`, or be set to
-/// `Invariant` as a safe default. Many types can use `Covariant` instead for
+/// `Inv` as a safe default. Many types can use `Co` instead for
 /// increased flexibility, but not all! See [Subtyping and Variance].
 /// - The trait's lifetime parameter `'src` must match the *minimum* lifetime
 /// parameter declared for the `impl` block, and sufficient bounds must be
@@ -52,14 +51,14 @@ use crate::{
 /// The next simplest case would be a struct with a single lifetime parameter
 /// and no generic type parameters:
 /// ```
-/// use transient::{Transient, Invariant};
+/// use transient::{Transient, Inv};
 /// struct S<'a> {
 ///     value: &'a str,
 /// }
 /// // This could also be derived
 /// unsafe impl<'a> Transient for S<'a> {
 ///     type Static = S<'static>;
-///     type Transience = Invariant<'a>;
+///     type Transience = Inv<'a>;
 /// }
 /// ```
 ///
@@ -69,7 +68,7 @@ use crate::{
 /// bound. Of course, the generics types themselves may still be borrowed
 /// with non-`'static` lifetimes, which is the whole point of this crate.
 /// ```
-/// use transient::{Transient, Invariant};
+/// use transient::{Transient, Inv};
 /// struct S<'a, T> {
 ///     value: &'a T,
 /// }
@@ -77,7 +76,7 @@ use crate::{
 /// // `T` itself is a transient type such as `&'b str`
 /// unsafe impl<'a, T: 'static> Transient for S<'a, T> {
 ///     type Static = S<'static, T>;
-///     type Transience = Invariant<'a>;
+///     type Transience = Inv<'a>;
 /// }
 /// ```
 ///
@@ -97,30 +96,30 @@ use crate::{
 /// There are three acceptable choices for the lifetime relationships in the
 /// `TwoRefs` struct declared above:
 /// ```
-/// # use transient::{Transient, Invariant};
+/// # use transient::{Transient, Inv};
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'b outlives 'a -> choose 'a for the trait
 /// unsafe impl<'a, 'b: 'a> Transient for TwoRefs<'a, 'b> {
 ///     type Static = TwoRefs<'static, 'static>;
-///     type Transience = Invariant<'a>;
+///     type Transience = Inv<'a>;
 /// }
 /// ```
 /// ```
-/// # use transient::{Transient, Invariant};
+/// # use transient::{Transient, Inv};
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'a outlives 'b -> choose `b` for the trait
 /// unsafe impl<'b, 'a: 'b> Transient for TwoRefs<'a, 'b> {
 ///     type Static = TwoRefs<'static, 'static>;
-///     type Transience = Invariant<'b>;
+///     type Transience = Inv<'b>;
 /// }
 /// ```
 /// ```
-/// # use transient::{Transient, Invariant};
+/// # use transient::{Transient, Inv};
 /// # struct TwoRefs<'a, 'b> {a: &'a str, b: &'b str}
 /// // 'a and 'b are equal -> no need to choose
 /// unsafe impl<'a> Transient for TwoRefs<'a, 'a> {
 ///     type Static = TwoRefs<'static, 'static>;
-///     type Transience = Invariant<'a>;
+///     type Transience = Inv<'a>;
 /// }
 /// ```
 /// However, choosing either `'a` **or** `'b` for the trait without declaring
@@ -139,12 +138,132 @@ use crate::{
 pub unsafe trait Transient {
 
     /// Same as `Self` but with all lifetime parameters replaced by `'static`.
-    type Static: Static;
+    type Static: 'static;
 
     /// todo
     type Transience: Transience;
+
+    fn erase<'a>(self: Box<Self>) -> Box<dyn crate::Any<Self::Transience> + 'a>
+    where
+        Self: Sized + 'a,
+        Self::Transience: CanTranscendTo<Self::Transience>
+    {
+        self
+    }
+
+    fn erase_ref<'a>(&self) -> &(dyn crate::Any<Self::Transience> + 'a)
+    where
+        Self: Sized + 'a,
+        Self::Transience: CanTranscendTo<Self::Transience>
+    {
+        self
+    }
 }
 
 pub trait Static: Transient<Static=Self> + 'static {}
 
 impl<T: Transient<Static=Self> + 'static + ?Sized> Static for T {}
+
+
+pub trait WrapStaticType: Sized + 'static {
+    fn wrap(self) -> StaticWrap<Self> {
+        StaticWrap(self)
+    }
+    fn wrap_ref(&self) -> &StaticWrap<Self> {
+        unsafe {&*(self as *const Self as *const StaticWrap<Self>)}
+    }
+    fn wrap_mut(&mut self) -> &mut StaticWrap<Self> {
+        unsafe {&mut *(self as *mut Self as *mut StaticWrap<Self>)}
+    }
+}
+impl<T: 'static> WrapStaticType for T {}
+
+#[repr(transparent)]
+pub struct StaticWrap<T: 'static>(T);
+
+unsafe impl<T: 'static> Transient for StaticWrap<T> {
+    type Static = Self;
+    type Transience = ();
+}
+
+
+macro_rules! impl_primatives {
+    ( $($ty:ty),* $(,)? ) => {
+        $(
+        unsafe impl Transient for $ty {
+            type Static = $ty;
+            type Transience = ();
+        }
+        unsafe impl<'a> Transient for &'a $ty {
+            type Static = &'static $ty;
+            type Transience = Co<'a>;
+        }
+        unsafe impl<'a> Transient for &'a mut $ty {
+            type Static = &'static mut $ty;
+            type Transience = Co<'a>;
+        }
+        unsafe impl<'a, 'b: 'a> Transient for &'a &'b $ty {
+            type Static = &'static &'static $ty;
+            type Transience = (Co<'a>, Co<'b>);
+        }
+        unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b $ty {
+            type Static = &'static mut &'static $ty;
+            type Transience = (Co<'a>, Inv<'b>);
+        }
+        unsafe impl<'a, 'b: 'a> Transient for &'a &'b mut $ty {
+            type Static = &'static &'static mut $ty;
+            type Transience = (Co<'a>, Co<'b>);
+        }
+        unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b mut $ty {
+            type Static = &'static mut &'static $ty;
+            type Transience = (Co<'a>, Inv<'b>);
+        }
+        )*
+    }
+}
+// unsafe impl<'a, T: Transient> Transient for &'a T {
+//     type Static = &'static T::Static;
+//     type Transience = (Co<'a>, T::Transience);
+// }
+
+
+impl_primatives!{
+    isize, i8, i16, i32, i64,
+    usize, u8, u16, u32, u64,
+    f32, f64,
+    String, Box<str>, &'static str,
+}
+
+unsafe impl<T: Transient> Transient for Vec<T> {
+    type Static = Vec<T::Static>;
+    type Transience = ();
+}
+unsafe impl<T: Transient> Transient for Box<T> {
+    type Static = Box<T::Static>;
+    type Transience = ();
+}
+unsafe impl<T: Transient> Transient for Box<[T]> {
+    type Static = Box<[T::Static]>;
+    type Transience = ();
+}
+unsafe impl<T: Transient> Transient for Option<T> {
+    type Static = Option<T::Static>;
+    type Transience = ();
+}
+unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
+    type Static = Result<T::Static, E>;
+    type Transience = ();
+}
+
+unsafe impl Transient for Box<dyn std::any::Any> {
+    type Static = Box<dyn std::any::Any>;
+    type Transience = ();
+}
+unsafe impl<'a> Transient for &'a dyn std::any::Any {
+    type Static = &'static dyn std::any::Any;
+    type Transience = Co<'a>;
+}
+unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
+    type Static = &'static mut dyn std::any::Any;
+    type Transience = Co<'a>;
+}

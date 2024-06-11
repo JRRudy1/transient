@@ -98,10 +98,10 @@ enum Variance {
 impl Variance {
     fn as_path(&self) -> Path {
         match self {
-            Variance::Invariant => parse_quote!(transient::Invariant),
-            Variance::Covariant => parse_quote!(transient::Covariant),
-            Variance::Contravariant => parse_quote!(transient::Contravariant),
-            Variance::Static => parse_quote!(transient::Static),
+            Variance::Invariant => parse_quote!(transient::Inv),
+            Variance::Covariant => parse_quote!(transient::Co),
+            Variance::Contravariant => parse_quote!(transient::Contra),
+            Variance::Static => parse_quote!(transient::Timeless),
         }
     }
 }

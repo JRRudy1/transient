@@ -1,8 +1,7 @@
-//! This crate extends the dynamic typing mechanism provided by the [`std::any::Any`]
-//! trait to add support for types with non-`'static` lifetimes.
+//! This crate re-implements the dynamic typing mechanism provided by the
+//! [`std::any::Any`] trait to add support for types with non-`'static` lifetimes.
 //!
 //! # Introduction
-//!
 //! The standard library's [`Any`] trait is used to emulate dynamic typing within
 //! Rust, and is extremely useful in cases where implementing a statically typed
 //! solution would be inconvenient, if not impossible. Examples include storing
@@ -19,15 +18,7 @@
 //! hidden behind a safe abstraction, so that type-erasure may be applied to *transient*
 //! (i.e. non-`'static`) data. This is achieved by modeling a Rust type as decomposable
 //! into separate components for the *raw data* and the *lifetime bounds*, as embodied
-//! by the `Static` and `Transience` associated types of the [`Transient`] trait. By
-//! modeling types in this way, a *safe* API can be built that uses the `Transience`
-//! to parameterize a wrapper struct that controls access to the raw data with any
-//! lifetime parameters [`transmute`][std::mem::transmute]'d to `'static`. From the
-//! borrow checker's perspective, this wrapper struct then behaves just like the
-//! original type and is subject to the same rules (and protections); but on the
-//! "inside", the `Transience` parameter makes it easy to prove the soundness of
-//! performing various operations on the `unsafe` raw data, such as... casting it
-//! to `dyn Any`!
+//! by the `Static` and `Transience` associated types of the [`Transient`] trait.
 //!
 //! # Features
 //! - Zero run-time cost beyond that of the `dyn Any` cast; everything is implemented
@@ -38,6 +29,103 @@
 //! - Wrappers exhibit the same variance as their inner type and provide methods
 //! for performing valid variance conversions.
 //! - Provides an `unsafe` public API with narrow safety requirements.
+//!
+//! # Examples
+//!
+//! The first step in using this crate is to implement the `Transient` trait
+//! for a type. This trait is automatically implemented for many stdlib types,
+//! can be derived for most custom types, and is very easy to implement by
+//! hand when more flexibility is needed.
+//!
+//! In the trivial case of a `'static` type with no lifetime parameters, the
+//! `transient` crate's `Any` trait can be used just like that of the standard
+//! library after deriving the `Transient` trait:
+//! ```
+//! # fn main() {
+//! use transient::*;
+//! #[derive(Transient, Debug, PartialEq, Eq)]
+//! struct Usize(usize);
+//!
+//! let orig = Usize(5);
+//!
+//! let erased: &dyn Any = &orig;
+//! assert_eq!(TypeId::of::<Usize>(), erased.type_id());
+//!
+//! let restored: &Usize = erased.downcast_ref().unwrap();
+//! assert_eq!(restored, &orig);
+//! # }
+//! ```
+//! The trick is that the `Any` trait as used above is actually generic over a
+//! type known as the `Transience`, which defaults to `()`; so the relevant line
+//! in the above snippet actually desugars to `erased: &'_ dyn Any<()> = &orig`.
+//! This form of the `Any` trait only supports `'static` types, just like the
+//! stdlib implementation.
+//!
+//! Where it gets interesting is when a type is *not* `'static`. For such a
+//! type, the `Any` trait can be parameterized by a `Transience` type. In
+//! the case of a single lifetime parameter, this can simply be one of three
+//! types provided by this crate, `Inv`, `Co`, and `Contra`, which represent
+//! the three flavors of [variance] a type can have with respect to a lifetime
+//! parameter. While choosing the correct variance would typically be a
+//! safety-critical decision, the valid choices for the variance of a type
+//! are bounded by its `Transient` implementation, and the compiler will stop
+//! you from choosing incorrectly.
+//!
+//! We will return to the topic of `Transience` in a bit, but for now lets
+//! choose `Inv` (*invariant*) which is the most conservative form of variance
+//! that all (single-lifetime) types can use:
+//! ```
+//! # fn main() {
+//! use transient::*;
+//! #[derive(Transient, Debug, PartialEq, Eq)]
+//! struct UsizeRef<'a>(&'a usize);
+//!
+//! let five = 5;
+//! let orig = UsizeRef(&five);
+//!
+//! let erased: &dyn Any<Inv> = &orig;
+//! assert_eq!(TypeId::of::<UsizeRef>(), erased.type_id());
+//!
+//! let restored: &UsizeRef = erased.downcast_ref().unwrap();
+//! assert_eq!(restored, &orig);
+//! # }
+//! ```
+//!
+//!
+//!
+//!
+//! # Overview
+//!
+//! Whereas the [`std::dyn::Any`] trait is implemented for all `T: 'static`, the
+//! [`transient::Any`] trait is implemented for all [`T: Transient`]. The `Transient`
+//! trait is an extremely simple, but `unsafe` trait consisting only of two
+//! associated types:
+//! ```skip
+//! pub unsafe trait Transient {
+//!     type Static: 'static;
+//!     type Transience: Transience;
+//! }
+//! ```
+//! The first associated type `Static` is referred to as the *static type* of the
+//! implementing type, and is simply the same type but with its lifetime parameters
+//! replaced by `'static` (e.g., a struct `S<'a, 'b>` would define `Static` as
+//! `S<'static, 'static>`). The static type is used to obtain a [`TypeId`] that
+//! uniquely identifies the (`'static` version of the) erased type so that it can
+//! be safely downcast. However, the compiler only assigns `TypeId`s for `'static`
+//! types, so any information about the true lifetime parameters of the `Transient`
+//! type is lost. Another mechanism is therefore needed to restore this lifetime
+//! information so that the borrow checker can continue to maintain Rust's safety
+//! guarantees.
+//!
+//! The second associated type `Transience` provides this mechanism by capturing
+//! the lifetime (and *[variance]*) information that the static type is missing.
+//! To accomplish this, the `transient` crate provides the `Co`, `Contra` and
+//! `Inv` structs that exhibit the 3 forms of variance for a single lifetime
+//! parameter, which can be combined in tuples to accommodate types with multiple
+//! (or zero) lifetime parameters. This type plays several key roles in the safety
+//! and flexibility of this crate's functionality, as will be discussed below.
+//!
+//! todo!
 //!
 //! # Explanation
 //! This crate makes heavy use of the [`std::mem::transmute`] function to implement
@@ -68,6 +156,92 @@
 //! generic lifetime parameters. While variance is a fairly niche topic in everyday
 //! Rust programming, it has major implications for the soundness of the `unsafe`
 //! code used to implement the crate's functionality.
+//!
+// variance table
+//! <table style="width:100%">
+//!   <tr style="font-size: 14px;">
+//!     <th style="width:1%;"> </th>
+//!     <th> <code>Inv&lt'short&gt</code> </th>
+//!     <th> <code>Inv&lt'long&gt</code> </th>
+//!     <th> <code>Co&lt'short&gt</code> </th>
+//!     <th> <code>Co&lt'long&gt</code> </th>
+//!     <th> <code>Contra&lt'short&gt</code> </th>
+//!     <th> <code>Contra&lt'long&gt</code> </th>
+//!     <th> <code>Timeless</code> </th>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Inv&lt'short&gt</code> </th>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Inv&lt'long&gt</code> </th>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Co&lt'short&gt</code> </th>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Co&lt'long&gt</code> </th>
+//!     <td align="center" style="background-color:#FFD966;"> yes<sup>&lowast;</sup> </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:#FFD966;"> yes<sup>&lowast;</sup> </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Contra&lt'short&gt</code> </th>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:#FFD966;"> yes<sup>&lowast;</sup> </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FFD966;"> yes<sup>&lowast;</sup> </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Contra&lt'long&gt</code> </th>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!     <td align="center" style="background-color:#FF9B9B;"> no </td>
+//!   </tr>
+//!   <tr>
+//!     <th style="font-size: 14px;background-color:white"> <code>Timeless</code> </th>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgreen;"> yes </td>
+//!     <td align="center" style="background-color:lightgrey;"> - </td>
+//!   </tr>
+//! </table>
+//! * transitions marked with an asterisk are allowed, but lossy; the recovered
+//! lifetime will be reduced (Co) or increased (Contra).
 //!
 //! Consider the following struct:
 //! ```
@@ -221,7 +395,7 @@
 //! use transient::*;
 //! unsafe impl<'a> Transient for InvS<'a> {
 //!     type Static = InvS<'static>;
-//!     type Transience = Invariant<'a>;
+//!     type Transience = Inv<'a>;
 //! }
 //! ```
 //!
@@ -286,7 +460,7 @@
 //! `'_` will be used to represent the `'src` lifetime.
 //!
 //! ```skip
-//! use transient::{Transient, Invariant};
+//! use transient::{Transient, Inv};
 //!
 //! #[derive(Transient, Clone, Debug, PartialEq, Eq)]
 //! struct S<'a> {
@@ -303,7 +477,7 @@
 //!
 //! // Extend lifetime, erase type, and wrap with an `Erased` struct to preserve
 //! // and enforce its lifetime bound:
-//! let erased: Erased<Invariant<'_>> = original.erase();
+//! let erased: Erased<Inv<'_>> = original.erase();
 //!
 //! let x = 4.ierase();
 //!
@@ -378,15 +552,12 @@
 //! ```
 //!
 //! [`PhantomData`]: std::marker::PhantomData
-//! [`Any`]: std::any::Any
 //! [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
-//! [`Transient`]: ../transient/trait.Transient.html
-//! [`Transient<'src>`]: ../transient/trait.Transient.html
+//! [`Transient`]: transient::Transient
+//! [`T: Transient`]: transient::Transient
+//[`Transient`]: ../transient/trait.Transient.html
 //! [`Transient` derive macro]: transient_derive::Transient
 //! [`Transient` trait]: Transient
-//! [`erase`]: Transient::erase
-//! [`erase_ref`]: Transient::erase_ref
-//! [`erase_mut`]: Transient::erase_mut
 //! [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
 
@@ -401,91 +572,16 @@ mod any;
 
 #[doc(inline)]
 pub use crate::transient::Transient;
+pub use crate::transient::{StaticWrap, WrapStaticType};
 
 #[doc(inline)]
-pub use crate::any::{Any, AnyOps, TypeId};
+pub use crate::any::{Any, AnyOps, UnsafeOps, TypeId};
 
 #[doc(inline)]
 pub use transience::{
-    Transience, CanRecoverFrom, CanTranscendTo,
-    Timeless, Co, Contra, Inv,
+    Transience, Timeless, Co, Contra, Inv,
 };
 
 
 #[cfg(feature = "derive")]
 pub use transient_derive::Transient;
-
-
-macro_rules! impl_primatives {
-    ( $($ty:ty),* $(,)? ) => {
-        $(
-        unsafe impl Transient for $ty {
-            type Static = $ty;
-            type Transience = ();
-        }
-        unsafe impl<'a> Transient for &'a $ty {
-            type Static = &'static $ty;
-            type Transience = Co<'a>;
-        }
-        unsafe impl<'a> Transient for &'a mut $ty {
-            type Static = &'static mut $ty;
-            type Transience = Co<'a>;
-        }
-        unsafe impl<'a, 'b: 'a> Transient for &'a &'b $ty {
-            type Static = &'static &'static $ty;
-            type Transience = (Co<'a>, Co<'b>);
-        }
-        unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b $ty {
-            type Static = &'static mut &'static $ty;
-            type Transience = (Co<'a>, Inv<'b>);
-        }
-        unsafe impl<'a, 'b: 'a> Transient for &'a &'b mut $ty {
-            type Static = &'static &'static mut $ty;
-            type Transience = (Co<'a>, Co<'b>);
-        }
-        unsafe impl<'a, 'b: 'a> Transient for &'a mut &'b mut $ty {
-            type Static = &'static mut &'static $ty;
-            type Transience = (Co<'a>, Inv<'b>);
-        }
-        )*
-    }
-}
-
-impl_primatives!{
-    isize, i8, i16, i32, i64, usize, u8, u16, u32, u64, f32, f64,
-    String, Box<str>, &'static str,
-}
-
-unsafe impl<T: 'static> Transient for Vec<T> {
-    type Static = Vec<T>;
-    type Transience = ();
-}
-unsafe impl<T: 'static> Transient for Box<T> {
-    type Static = Box<T>;
-    type Transience = ();
-}
-unsafe impl<T: 'static> Transient for Box<[T]> {
-    type Static = Box<[T]>;
-    type Transience = ();
-}
-unsafe impl<T: 'static> Transient for Option<T> {
-    type Static = Option<T>;
-    type Transience = ();
-}
-unsafe impl<T: 'static, E: 'static> Transient for Result<T, E> {
-    type Static = Result<T, E>;
-    type Transience = ();
-}
-
-unsafe impl Transient for Box<dyn std::any::Any> {
-    type Static = Box<dyn std::any::Any>;
-    type Transience = ();
-}
-unsafe impl<'a> Transient for &'a dyn std::any::Any {
-    type Static = &'static dyn std::any::Any;
-    type Transience = Co<'a>;
-}
-unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
-    type Static = &'static mut dyn std::any::Any;
-    type Transience = Co<'a>;
-}

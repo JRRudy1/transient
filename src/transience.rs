@@ -1,4 +1,3 @@
-use std::{fmt::Debug, marker::PhantomData};
 
 /// Unsafe marker trait for types used to establish the [variance] for each
 /// lifetime parameter of a struct.
@@ -6,26 +5,13 @@ use std::{fmt::Debug, marker::PhantomData};
 /// Note that even though most types are *covariant* in reality, this crate
 /// treats *invariance* as the default since any other assumption could cause
 /// undefined behavior if chosen incorrectly. To override this default, the
-/// [`Transience`] associated type can be set in the type's `Transient`
+/// [`Transience` associated type] can be set in the type's `Transient`
 /// implementation; if using the derive macro, this corresponds to including
 /// the `#[r#unsafe(covariant)]` attribute.
 ///
-/// # SAFETY
-/// Must be a zero-sized-type with the variance suggested by it's name.
-///
-/// [`Transience`]: crate::Transient::Transience
+/// [`Transience` associated type]: crate::Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
-pub unsafe trait Transience: Debug {}// + IntoTransience<Self> {}
-
-/// Specialized `Transience` for a single lifetime parameter.
-///
-/// Multi-lifetime `Transience` implementations are typically tuples containing
-/// a single `Variance` for each lifetime.
-///
-/// # SAFETY
-/// Must exhibit the variance suggested by it's name.
-pub unsafe trait Variance<'a>: Transience {}
-
+pub trait Transience {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
 /// of a *static* type with no generic lifetime parameters.
@@ -34,7 +20,7 @@ pub unsafe trait Variance<'a>: Transience {}
 /// safer to work with and allow several restrictions imposed by the crate to
 /// be loosened.
 pub type Timeless = ();
-unsafe impl Transience for Timeless {}
+impl Transience for Timeless {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
 /// of a type that is *invariant* with respect to its lifetime parameter `'a`.
@@ -45,10 +31,9 @@ unsafe impl Transience for Timeless {}
 /// a function.
 ///
 /// See the [`Transience`] documentation for more information.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
-unsafe impl<'a> Transience for Inv<'a> {}
-unsafe impl<'a> Variance<'a> for Inv<'a> {}
+#[derive(Clone, Copy, Debug)]
+pub struct Inv<'a>(fn(&'a ()) -> &'a ());
+impl<'a> Transience for Inv<'a> {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
 /// of a type that is *covariant* with respect to its lifetime parameter `'a`.
@@ -60,9 +45,8 @@ unsafe impl<'a> Variance<'a> for Inv<'a> {}
 ///
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug)]
-pub struct Co<'a>(PhantomData<&'a ()>);
-unsafe impl<'a> Transience for Co<'a> {}
-unsafe impl<'a> Variance<'a> for Co<'a> {}
+pub struct Co<'a>(&'a ());
+impl<'a> Transience for Co<'a> {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
 /// of a type that is *contravariant* with respect to its lifetime parameter `'a`.
@@ -74,65 +58,162 @@ unsafe impl<'a> Variance<'a> for Co<'a> {}
 ///
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug)]
-pub struct Contra<'a>(PhantomData<fn(&'a ())>);
-unsafe impl<'a> Transience for Contra<'a> {}
-unsafe impl<'a> Variance<'a> for Contra<'a> {}
+pub struct Contra<'a>(fn(&'a ()));
+impl<'a> Transience for Contra<'a> {}
 
 
 /// Marker trait indicating that the implementing [`Transience`] can safely
-/// "downgrade" to the `Other` one.
+/// upcast to `Other`.
 ///
 /// A `SubTransience` can transcend to its `SuperTransience`. For example,
 /// `Co<'long>` is a `SubTransience` of `Co<'short>`, and can thus transcend
 /// to it freely.
 ///
-/// The set of valid transitions (and implementers) can be summarized as:
-/// - `Timeless` --> `R: Transience`
+/// The set of valid transitions can be summarized as:
+/// - `Timeless` --> any `R: Transience`
 /// - `Inv<'a>` --> `Inv<'a>`
 /// - `Co<'long>` --> `Co<'short>`
+/// - `Co<'long>` --> `Inv<'short>`
 /// - `Contra<'short>` --> `Contra<'long>`
 /// - `Contra<'short>` --> `Inv<'long>`
-/// -
+///
 /// # SAFETY
 /// This trait must only be implemented for *valid* conversions. Implementing
 /// this trait for an *invalid* conversion (such as shortening the lifetime
 /// of a *contravariant* type) can lead to undefined behavior.
-pub unsafe trait CanTranscendTo<Super>: Transience + Sized {}
-
-unsafe impl<R: Transience> CanTranscendTo<R> for Timeless {}
-unsafe impl<'a> CanTranscendTo<Inv<'a>> for Inv<'a> {}
-unsafe impl<'short, 'long: 'short> CanTranscendTo<Co<'short>> for Co<'long> {}
-unsafe impl<'short, 'long: 'short> CanTranscendTo<Inv<'short>> for Co<'long> {}
-unsafe impl<'short, 'long: 'short> CanTranscendTo<Contra<'long>> for Contra<'short> {}
-unsafe impl<'short, 'long: 'short> CanTranscendTo<Inv<'long>> for Contra<'short> {}
+pub unsafe trait CanTranscendTo<Other> {}
 
 
-/// Trait to recover as much as possible after transcending.
+/// Marker trait indicating that the implementing [`Transience`] can be safely
+/// recovered from the parameterizing `Transience`.
 ///
-/// When a type is `Co<'long>`, it can transcend to `Inv<'short>`. We can't allow
-/// fully reverting to `Co<'long>` because we erased the extra lifetime, but we
-/// at least need to allow revert to `Co<'short>` or else a covariant type would
-/// be lost forever once transcended to `Inv`.
+/// This is *almost* equivalent to the [`CanTranscendTo`] trait from the opposite
+/// perspective, but with a few exceptions to allow more flexible recovery. For
+/// example, we might erase a type `T: Transient<Transience=Co<'a>>` to
+/// `dyn Any<Inv<'a>>` so that we can store it with invariant types, and this is
+/// allowed because `Co<'a>: CanTranscendTo<Inv<'a>>`. However, downcasting the
+/// erased type back to `T` would require reverting `Inv<'a>` to `Co<'a>`, which
+/// is *not* a valid conversion according to the subtyping relationships modeled
+/// by the `CanTranscendTo` trait. While it is true that converting `Inv<'a>` to
+/// `Co<'a>` would not be sound in general, it is fine to do this while downcasting
+/// because the trait abject is not kept around where the altered transience could
+/// be abused and lead to UB.
 ///
-/// The impls provided are very similar to `SubTransience`, except:
-/// - `Inv` can recover to `Co` or `Contra` at the same lifetime
-/// - Any transience can recover to `Timeless`
-/// - `Timeless` can only recover to itself
+/// The impls provided are very similar to `CanTranscendTo`, except:
+/// - `Co` can be recovered from `Inv` at the same (or shorter) lifetime.
+/// - `Contra` can be recovered from `Inv` at the same (or longer) lifetime.
+/// - `Timeless` can be recovered from *any* transience.
+/// - The only transience that can be recovered from `Timeless` is itself.
+/// This is only for technical reasons (to avoid duplicate impls), not safety
+/// considerations. In practice it doesn't sacrifice flexibility because the
+/// only safe way to obtain `dyn Any<Timeless>` in the first place is if the
+/// original type was `T: Transient<Transience=Timeless>`.
+///
+/// # SAFETY
+/// This trait must only be implemented for *valid* conversions. Implementing
+/// this trait for an *invalid* conversion (such as shortening the lifetime
+/// of a *contravariant* type) can lead to undefined behavior.
 pub unsafe trait CanRecoverFrom<From> {}
 
-unsafe impl<V: Transience> CanRecoverFrom<V> for Timeless {}
+
+// ************************************************************************* //
+// ************************* SAFETY-CRITICAL LOGIC! ************************ //
+// ************************************************************************* //
+// The following impls define the allowable transitions between variances,   //
+// amd play key roles in upholding safety guarantees. All other impls are    //
+// derived from these rules, so it is critical that they be correct.         //
+// ************************************************************************* //
+
+unsafe impl<R: Transience> CanTranscendTo<R> for Timeless {}
+unsafe impl<R: Transience> CanRecoverFrom<R> for Timeless {}
+
+unsafe impl<'a> CanTranscendTo<Inv<'a>> for Inv<'a> {}
 unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Inv<'a> {}
+
+unsafe impl<'a, 'b: 'a> CanTranscendTo<Co<'a>> for Co<'b> {}
+unsafe impl<'a, 'b: 'a> CanRecoverFrom<Co<'b>> for Co<'a> {}
+
+unsafe impl<'a, 'b: 'a> CanTranscendTo<Inv<'a>> for Co<'b> {}
+unsafe impl<'a, 'b: 'a> CanRecoverFrom<Co<'b>> for Inv<'a> {}
+
+unsafe impl<'a, 'b: 'a> CanTranscendTo<Contra<'b>> for Contra<'a> {}
+unsafe impl<'a, 'b: 'a> CanRecoverFrom<Contra<'a>> for Contra<'b> {}
+
+unsafe impl<'a, 'b: 'a> CanTranscendTo<Inv<'b>> for Contra<'a> {}
+unsafe impl<'a, 'b: 'a> CanRecoverFrom<Contra<'a>> for Inv<'b> {}
+
 unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Co<'a> {}
 unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Contra<'a> {}
-unsafe impl<'short, 'long: 'short> CanRecoverFrom<Co<'long>> for Co<'short> {}
-unsafe impl<'short, 'long: 'short> CanRecoverFrom<Co<'long>> for Inv<'short> {}
-unsafe impl<'short, 'long: 'short> CanRecoverFrom<Contra<'short>> for Contra<'long> {}
-unsafe impl<'short, 'long: 'short> CanRecoverFrom<Contra<'short>> for Inv<'long> {}
+
+// ************************************************************** //
 
 
-macro_rules! impl_transience_tuple {
-    { ($($src:ident),*) => ($($dst:ident),*) } => {
-        unsafe impl<$($src),*> Transience for ($($src),*,)
+
+/// Implements the transitions between each scalar transience and a
+/// 2- or 3-tuple of compatible transiences.
+macro_rules! impl_scalar_to_tuples {
+    ( $($typ:ty),* ) => {
+        $(
+        impl<'a> Transience for ($typ,) {}
+
+        // ------------------------------------------
+
+        // scalar => 1-tuple* => scalar
+        unsafe impl<'a, R> CanTranscendTo<(R,)> for $typ
+            where $typ: CanTranscendTo<R> {}
+        unsafe impl<'a, R> CanRecoverFrom<(R,)> for $typ
+            where $typ: CanRecoverFrom<R> {}
+
+        // scalar => 2-tuple* => scalar
+        unsafe impl<'a, R1, R2> CanTranscendTo<(R1, R2,)> for $typ
+            where $typ: CanTranscendTo<R1> + CanTranscendTo<R2> {}
+        unsafe impl<'a, R1, R2> CanRecoverFrom<(R1, R2,)> for $typ
+            where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2> {}
+
+        // scalar => 3-tuple* => scalar
+        unsafe impl<'a, R1, R2, R3> CanTranscendTo<(R1, R2, R3,)> for $typ
+            where $typ: CanTranscendTo<R1> + CanTranscendTo<R2> + CanTranscendTo<R3> {}
+        unsafe impl<'a, R1, R2, R3> CanRecoverFrom<(R1, R2, R3,)> for $typ
+            where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2> + CanRecoverFrom<R3> {}
+
+        // ------------------------------------------
+
+        // 1-tuple* => scalar => 1-tuple*
+        unsafe impl<'a, R,> CanTranscendTo<$typ> for (R,)
+            where R: CanTranscendTo<$typ> {}
+        unsafe impl<'a, R,> CanRecoverFrom<$typ> for (R,)
+            where R: CanRecoverFrom<$typ> {}
+        /* !!! */
+
+        // 2-tuple* => scalar => 2-tuple*
+        unsafe impl<'a, R1, R2> CanTranscendTo<$typ> for (R1, R2)
+            where R1: CanTranscendTo<$typ>, R2: CanTranscendTo<Self> {}
+        unsafe impl<'a, R1, R2> CanRecoverFrom<$typ> for (R1, R2)
+            where R1: CanRecoverFrom<$typ>, R2: CanRecoverFrom<Self> {}
+
+        // 3-tuple* => scalar => 3-tuple*
+        unsafe impl<'a, R1, R2, R3> CanTranscendTo<$typ> for (R1, R2, R3)
+            where R1: CanTranscendTo<Self>,
+                  R2: CanTranscendTo<Self>,
+                  R3: CanTranscendTo<Self>,  {}
+        unsafe impl<'a, R1, R2, R3> CanRecoverFrom<$typ> for (R1, R2, R3)
+            where R1: CanRecoverFrom<Self>,
+                  R2: CanRecoverFrom<Self>,
+                  R3: CanRecoverFrom<Self>,  {}
+
+        )*
+    }
+}
+impl_scalar_to_tuples!{
+    Co<'a>, Contra<'a>, Inv<'a>
+}
+
+/// implements transitions between equal-length tuples where each sub-transition is
+/// also implemented (e.g., `(Co<'long>, Co<'short>)` -> `(Co<'short>, Inv<'short>)`)
+macro_rules! impl_equal_tuples {
+    { $( ($($src:ident),*) => ($($dst:ident),*) );* $(;)? } => {
+        $(
+        impl<$($src),*> Transience for ($($src),*,)
         where
             $( $src: Transience ),*
         {}
@@ -145,10 +226,11 @@ macro_rules! impl_transience_tuple {
         where
             $( $src: CanRecoverFrom<$dst> ),*
         {}
+        )*
     }
 }
-
-impl_transience_tuple!{ (A1) => (A2) }
-impl_transience_tuple!{ (A1, B1) => (A2, B2) }
-impl_transience_tuple!{ (A1, B1, C1) => (A2, B2, C2) }
-impl_transience_tuple!{ (A1, B1, C1, D1) => (A2, B2, C2, D2) }
+impl_equal_tuples!{
+    (A1, B1) => (A2, B2);
+    (A1, B1, C1) => (A2, B2, C2);
+    (A1, B1, C1, D1) => (A2, B2, C2, D2);
+}
