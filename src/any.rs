@@ -339,7 +339,7 @@ fn test_any<'a>() {
     // borrowed `usize`
     let _: &dyn Any = &value;
     let _co: &dyn Any<Co> = &value;
-    let _: &dyn Any<Inv> = _co.transcend_ref();
+    let x = _co.transcend_ref::<Inv>();
     let _: &usize = _co.downcast_ref().unwrap();
 
     // owned `&usize`
@@ -352,10 +352,9 @@ fn test_any<'a>() {
     // borrowed `&usize`
     let valref = &5_usize;
     let _: &dyn Any<Inv> = &valref;
-    let _co: &dyn Any<Co> = &valref;
-    let _dc: &&usize = _co.downcast_ref().unwrap();
-
-    // let _: &dyn Any<Inv> = _co.transcend_ref();
+    let co: &dyn Any<Co> = &valref;
+    let _: &&usize = co.downcast_ref().unwrap();
+    let inv = co.transcend_ref::<Inv>();
 
     // owned `&&usize`
     let _: Box<dyn Any<(Inv, Inv)>> = Box::new(&valref);
