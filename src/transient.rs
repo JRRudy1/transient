@@ -210,36 +210,150 @@ impl_primatives!{
     String, Box<str>, &'static str,
 }
 
-unsafe impl<T: Transient> Transient for Vec<T> {
-    type Static = Vec<T::Static>;
-    type Transience = ();
-}
-unsafe impl<T: Transient> Transient for Box<T> {
-    type Static = Box<T::Static>;
-    type Transience = ();
-}
-unsafe impl<T: Transient> Transient for Box<[T]> {
-    type Static = Box<[T::Static]>;
-    type Transience = ();
-}
-unsafe impl<T: Transient> Transient for Option<T> {
-    type Static = Option<T::Static>;
-    type Transience = ();
-}
-unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
-    type Static = Result<T::Static, E>;
-    type Transience = ();
+
+mod std_impls {
+    use crate::{Transient, Co};
+    
+    use std::collections::HashMap;
+    use std::borrow::{Cow, ToOwned};
+    use std::any::Any as StdAny;
+    
+    unsafe impl<T: Transient> Transient for Vec<T> {
+        type Static = Vec<T::Static>;
+        type Transience = T::Transience;
+    }
+    
+    unsafe impl<K: Transient, V: Transient> Transient for HashMap<K, V> {
+        type Static = HashMap<K::Static, V::Static>;
+        type Transience = (K::Transience, V::Transience);
+    }
+    
+    unsafe impl<T: Transient> Transient for Box<T> {
+        type Static = Box<T::Static>;
+        type Transience = T::Transience;
+    }
+    unsafe impl<T: Transient> Transient for Box<[T]> {
+        type Static = Box<[T::Static]>;
+        type Transience = T::Transience;
+    }
+    
+    unsafe impl<'a, T: Transient + ToOwned> Transient for Cow<'a, T> 
+        where T::Static: ToOwned
+    {
+        type Static = Cow<'static, T::Static>;
+        type Transience = (Co<'a>, T::Transience);
+    }
+        
+    unsafe impl<T: Transient> Transient for Option<T> {
+        type Static = Option<T::Static>;
+        type Transience = T::Transience;
+    }
+    unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
+        type Static = Result<T::Static, E>;
+        type Transience = T::Transience;
+    }
+    
+    unsafe impl Transient for Box<dyn StdAny> {
+        type Static = Box<dyn StdAny>;
+        type Transience = ();
+    }
+    unsafe impl<'a> Transient for &'a dyn StdAny {
+        type Static = &'static dyn StdAny;
+        type Transience = Co<'a>;
+    }
+    unsafe impl<'a> Transient for &'a mut dyn StdAny {
+        type Static = &'static mut dyn StdAny;
+        type Transience = Co<'a>;
+    }
+    
+    
 }
 
-unsafe impl Transient for Box<dyn std::any::Any> {
-    type Static = Box<dyn std::any::Any>;
-    type Transience = ();
+
+
+#[cfg(feature = "ndarray")]
+mod ndarray_impls {
+    use ndarray::{ArrayView, ArrayViewMut, CowArray, Dimension};
+
+    unsafe impl<'a, T, D> crate::Transient for ArrayView<'a, T, D>
+    where
+        T: 'static,
+        D: Dimension + 'static,
+    {
+        type Static = ArrayView<'static, T, D>;
+        type Transience = crate::Co<'a>;
+    }
+
+    unsafe impl<'a, T, D> crate::Transient for ArrayViewMut<'a, T, D>
+    where
+        T: 'static,
+        D: Dimension + 'static,
+    {
+        type Static = ArrayViewMut<'static, T, D>;
+        type Transience = crate::Co<'a>;
+    }
+
+    unsafe impl<'a, T, D> crate::Transient for CowArray<'a, T, D>
+    where
+        T: 'static,
+        D: Dimension + 'static,
+    {
+        type Static = CowArray<'static, T, D>;
+        type Transience = crate::Co<'a>;
+    }
 }
-unsafe impl<'a> Transient for &'a dyn std::any::Any {
-    type Static = &'static dyn std::any::Any;
-    type Transience = Co<'a>;
+
+
+#[cfg(feature = "pyo3")]
+mod pyo3_impls {
+    use pyo3::{Bound, PyRef, PyRefMut, Borrowed};
+    use pyo3::pyclass::{PyClass, boolean_struct::False};
+
+    unsafe impl<'py, T: 'static> crate::Transient for Bound<'py, T> {
+        type Static = Bound<'static, T>;
+        type Transience = crate::Co<'py>;
+    }
+
+    unsafe impl<'a, 'py, T: 'static> crate::Transient for Borrowed<'a, 'py, T> {
+        type Static = Borrowed<'static, 'static, T>;
+        type Transience = (crate::Co<'a>, crate::Co<'py>);
+    }
+
+    unsafe impl<'py, T: PyClass> crate::Transient for PyRef<'py, T> {
+        type Static = PyRef<'static, T>;
+        type Transience = crate::Co<'py>;
+    }
+
+    unsafe impl<'py, T: PyClass<Frozen = False>> crate::Transient for PyRefMut<'py, T> {
+        type Static = PyRefMut<'static, T>;
+        type Transience = crate::Co<'py>;
+    }
 }
-unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
-    type Static = &'static mut dyn std::any::Any;
-    type Transience = Co<'a>;
+
+
+#[cfg(feature = "numpy")]
+mod numpy_impls {
+
+    use ndarray::Dimension;
+    use numpy::{PyReadonlyArray, PyReadwriteArray, Element};
+
+    unsafe impl<'py, T, D> crate::Transient for PyReadonlyArray<'py, T, D>
+    where
+        T: Element + 'static,
+        D: Dimension + 'static,
+    {
+        type Static = PyReadonlyArray<'static, T, D>;
+        type Transience = crate::Co<'py>;
+    }
+
+    unsafe impl<'py, T, D> crate::Transient for PyReadwriteArray<'py, T, D>
+    where
+        T: Element + 'static,
+        D: Dimension + 'static,
+    {
+        type Static = PyReadwriteArray<'static, T, D>;
+        type Transience = crate::Co<'py>;
+    }
+}
+
 }

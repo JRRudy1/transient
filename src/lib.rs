@@ -581,7 +581,6 @@ mod any;
 
 #[doc(inline)]
 pub use crate::transient::Transient;
-pub use crate::transient::{StaticWrap, WrapStaticType};
 
 #[doc(inline)]
 pub use crate::any::{Any, AnyOps, UnsafeOps, TypeId};
