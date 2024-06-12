@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 ///
 /// [`Transience` associated type]: crate::Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
-pub trait Transience {}
+pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
 /// of a *static* type with no generic lifetime parameters.

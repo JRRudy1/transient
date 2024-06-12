@@ -1,5 +1,5 @@
 //! Defines the [`Transient`] trait.
-use crate::transience::{Transience, Co, Inv, CanTranscendTo};
+use crate::transience::{Transience, Co, Inv};
 
 
 /// Unsafe trait for converting the lifetime parameters of a type to (and from)
@@ -144,46 +144,22 @@ pub unsafe trait Transient {
     type Transience: Transience;
 
     fn erase<'a>(self: Box<Self>) -> Box<dyn crate::Any<Self::Transience> + 'a>
-    where
-        Self: Sized + 'a,
-        Self::Transience: CanTranscendTo<Self::Transience>
+        where Self: Sized + 'a,
     {
         self
     }
 
     fn erase_ref<'a>(&self) -> &(dyn crate::Any<Self::Transience> + 'a)
-    where
-        Self: Sized + 'a,
-        Self::Transience: CanTranscendTo<Self::Transience>
+        where Self: Sized + 'a,
     {
         self
     }
-}
 
-pub trait Static: Transient<Static=Self> + 'static {}
-
-impl<T: Transient<Static=Self> + 'static + ?Sized> Static for T {}
-
-
-pub trait WrapStaticType: Sized + 'static {
-    fn wrap(self) -> StaticWrap<Self> {
-        StaticWrap(self)
+    fn erase_mut<'a>(&mut self) -> &mut (dyn crate::Any<Self::Transience> + 'a)
+        where Self: Sized + 'a,
+    {
+        self
     }
-    fn wrap_ref(&self) -> &StaticWrap<Self> {
-        unsafe {&*(self as *const Self as *const StaticWrap<Self>)}
-    }
-    fn wrap_mut(&mut self) -> &mut StaticWrap<Self> {
-        unsafe {&mut *(self as *mut Self as *mut StaticWrap<Self>)}
-    }
-}
-impl<T: 'static> WrapStaticType for T {}
-
-#[repr(transparent)]
-pub struct StaticWrap<T: 'static>(T);
-
-unsafe impl<T: 'static> Transient for StaticWrap<T> {
-    type Static = Self;
-    type Transience = ();
 }
 
 
@@ -228,8 +204,8 @@ macro_rules! impl_primatives {
 
 
 impl_primatives!{
-    isize, i8, i16, i32, i64,
-    usize, u8, u16, u32, u64,
+    isize, i8, i16, i32, i64, i128,
+    usize, u8, u16, u32, u64, u128,
     f32, f64,
     String, Box<str>, &'static str,
 }
