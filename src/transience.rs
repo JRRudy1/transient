@@ -156,10 +156,6 @@ unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Contra<'a> {}
 macro_rules! impl_scalar_to_tuples {
     ( $($typ:ty),* ) => {
         $(
-        impl<'a> Transience for ($typ,) {}
-
-        // ------------------------------------------
-
         // scalar => 1-tuple* => scalar
         unsafe impl<'a, R> CanTranscendTo<(R,)> for $typ
             where $typ: CanTranscendTo<R> {}
@@ -213,7 +209,7 @@ impl_scalar_to_tuples!{
 /// implements transitions between equal-length tuples where each sub-transition is
 /// also implemented (e.g., `(Co<'long>, Co<'short>)` -> `(Co<'short>, Inv<'short>)`)
 macro_rules! impl_equal_tuples {
-    { $( ($($src:ident),*) => ($($dst:ident),*) );* $(;)? } => {
+    { $( ($($src:ident,)*) => ($($dst:ident,)*) );* $(;)? } => {
         $(
         impl<$($src),*> Transience for ($($src),*,)
         where
@@ -232,7 +228,8 @@ macro_rules! impl_equal_tuples {
     }
 }
 impl_equal_tuples!{
-    (A1, B1) => (A2, B2);
-    (A1, B1, C1) => (A2, B2, C2);
-    (A1, B1, C1, D1) => (A2, B2, C2, D2);
+    (A1,) => (A2,);
+    (A1, B1,) => (A2, B2,);
+    (A1, B1, C1,) => (A2, B2, C2,);
+    (A1, B1, C1, D1,) => (A2, B2, C2, D2,);
 }
