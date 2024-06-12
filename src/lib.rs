@@ -21,14 +21,20 @@
 //! by the `Static` and `Transience` associated types of the [`Transient`] trait.
 //!
 //! # Features
-//! - Zero run-time cost beyond that of the `dyn Any` cast; everything is implemented
-//! using the type system, which only exists through compile-time.
+//! - Zero run-time cost beyond that of a standard `dyn Any` cast; everything is 
+//! implemented using the compile-time type system.
 //! - Safely accounts for subtyping and variance.
 //! - Supports types with generic type parameters, 0 or more lifetime parameters
 //! with arbitrary variances.
 //! - Wrappers exhibit the same variance as their inner type and provide methods
 //! for performing valid variance conversions.
 //! - Provides an `unsafe` public API with narrow safety requirements.
+//! 
+//! # Limitations
+//! - Only emulates the non-`Send`/`Sync` variant of the stdlib's `Any` trait 
+//! for now, but support for `Any + Send` and `Any + Send + Sync` can be added 
+//! trivially 
+//! 
 //!
 //! # Examples
 //!
@@ -43,6 +49,7 @@
 //! ```
 //! # fn main() {
 //! use transient::*;
+//! 
 //! #[derive(Transient, Debug, PartialEq, Eq)]
 //! struct Usize(usize);
 //!
@@ -68,8 +75,8 @@
 //! the three flavors of [variance] a type can have with respect to a lifetime
 //! parameter. While choosing the correct variance would typically be a
 //! safety-critical decision, the valid choices for the variance of a type
-//! are bounded by its `Transient` implementation, and the compiler will stop
-//! you from choosing incorrectly.
+//! are bounded by its implementation of the `Transient` trait, and the compiler 
+//! will stop you from choosing incorrectly.
 //!
 //! We will return to the topic of `Transience` in a bit, but for now lets
 //! choose `Inv` (*invariant*) which is the most conservative form of variance
@@ -84,6 +91,7 @@
 //! let orig = UsizeRef(&five);
 //!
 //! let erased: &dyn Any<Inv> = &orig;
+//! assert!(erased.is::<UsizeRef>());
 //! assert_eq!(TypeId::of::<UsizeRef>(), erased.type_id());
 //!
 //! let restored: &UsizeRef = erased.downcast_ref().unwrap();
@@ -96,7 +104,7 @@
 //!
 //! # Overview
 //!
-//! Whereas the [`std::dyn::Any`] trait is implemented for all `T: 'static`, the
+//! Whereas the [`std::any::Any`] trait is implemented for all `T: 'static`, the
 //! [`transient::Any`] trait is implemented for all [`T: Transient`]. The `Transient`
 //! trait is an extremely simple, but `unsafe` trait consisting only of two
 //! associated types:
@@ -504,7 +512,7 @@
 //! # use transient::{Transient};
 //! # #[derive(Transient, Clone, Debug, PartialEq, Eq)]
 //! # struct S<'a> {value: &'a String} let string = "qwer".to_string();
-//! # let original = S{value: &string}; let erased = original.clone().erase();
+//! # let original = S{value: &string}; let erased = original.clone().erase_ref();
 //! // Restore the static type and lifetime of the transient struct:
 //! let restored: S<'_> = erased.restore().unwrap();
 //! assert_eq!(&restored, &original);
@@ -553,6 +561,7 @@
 //!
 //! [`PhantomData`]: std::marker::PhantomData
 //! [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
+//! [`transient::Any`]: transient::Transient
 //! [`Transient`]: transient::Transient
 //! [`T: Transient`]: transient::Transient
 //[`Transient`]: ../transient/trait.Transient.html

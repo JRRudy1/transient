@@ -63,10 +63,8 @@ pub trait AnyOps<R: Transience>: UnsafeOps<R> {
 
     /// Attempt to downcast the box to a concrete type with its lifetime
     /// parameters restored.
-    fn downcast<T>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>
+    fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
+        where T::Transience: CanRecoverFrom<R>
     {
         if self.is::<T>() {
             // We just confirmed that the type is correct.
@@ -75,34 +73,12 @@ pub trait AnyOps<R: Transience>: UnsafeOps<R> {
             Err(self)
         }
     }
-    // /// Attempt to downcast the box to a concrete type with its lifetime
-    // /// parameters restored.
-    // fn downcast_as<R2, T>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
-    // where
-    //     T: Transient,
-    //     T::Transience: CanRecoverFrom<R> + CanTranscendTo<R2>,
-    //     R2: Transience + CanRecoverFrom<R>,
-    // {
-    //     let restored: Box<T> = self.downcast::<T>()?;
-    //     Ok(unsafe{ std::mem::transmute(restored) })
-    //     //
-    //     // if self.is::<T>() {
-    //     //     // We just confirmed that the type is correct so the pointer
-    //     //     // casts are fine. The trait bounds ensure the transience is
-    //     //     // compatible, so setting the lifetimes is fine.
-    //     //     let ptr = Box::into_raw(self) as *mut T;
-    //     //     Ok(unsafe{ Box::from_raw(ptr) })
-    //     // } else {
-    //     //     Err(self)
-    //     // }
-    // }
+
 
     /// Returns a reference to the inner value with its lifetime parameters
     /// restored if it is of type `T`, or `None` if it isn't.
-    fn downcast_ref<T>(&self) -> Option<&T>
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>
+    fn downcast_ref<T: Transient>(&self) -> Option<&T>
+        where T::Transience: CanRecoverFrom<R>
     {
         if self.is::<T>() {
             // We just confirmed that the type is correct.
@@ -114,10 +90,8 @@ pub trait AnyOps<R: Transience>: UnsafeOps<R> {
 
     /// Returns a mutable reference to the inner value with its lifetime
     /// parameters restored if it is of type `T`, or `None` if it isn't.
-    fn downcast_mut<T>(&mut self) -> Option<&mut T>
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>
+    fn downcast_mut<T: Transient>(&mut self) -> Option<&mut T>
+        where T::Transience: CanRecoverFrom<R>
     {
         if self.is::<T>() {
             // We just confirmed that the type is correct.
@@ -128,30 +102,24 @@ pub trait AnyOps<R: Transience>: UnsafeOps<R> {
     }
 
     /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: Transience,
-        R: CanTranscendTo<R2>
+    fn transcend<R2: Transience>(self: Box<Self>) -> Box<dyn Any<R2>>
+        where R: CanTranscendTo<R2>
     {
         // The trait bound on `R` guarantees that the transience is compatible.
         unsafe{ self.transcend_unbounded::<R2>() }
     }
 
     /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend_ref<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: Transience,
-        R: CanTranscendTo<R2>
+    fn transcend_ref<R2: Transience>(&self) -> &dyn Any<R2>
+        where R: CanTranscendTo<R2>
     {
         // The trait bound on `R` guarantees that the transience is compatible.
         unsafe{ self.transcend_ref_unbounded::<R2>() }
     }
 
     /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend_mut<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: Transience,
-        R: CanTranscendTo<R2>
+    fn transcend_mut<R2: Transience>(&mut self) -> &mut dyn Any<R2>
+        where R: CanTranscendTo<R2>
     {
         // The trait bound on `R` guarantees that the transience is compatible.
         unsafe{ self.transcend_mut_unbounded::<R2>() }
@@ -166,7 +134,7 @@ pub trait AnyOps<R: Transience>: UnsafeOps<R> {
 /// [`Transience`], and cannot be implemented directly.
 pub trait UnsafeOps<R: Transience> {
 
-    /// Downcasts the box to a concrete type without runtime checks.
+    /// Downcasts the box to a concrete type without compile-time checks.
     ///
     /// For a safe alternative see [`downcast`].
     ///
@@ -175,12 +143,10 @@ pub trait UnsafeOps<R: Transience> {
     /// with the incorrect type is *undefined behavior*.
     ///
     /// [`downcast`]: AnyOps::downcast
-    unsafe fn downcast_unchecked<T>(self: Box<Self>) -> Box<T>
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>;
+    unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
+        where T::Transience: CanRecoverFrom<R>;
 
-    /// Downcasts the shared reference to a concrete type without runtime checks.
+    /// Downcasts the shared reference to a concrete type without compile-time checks.
     ///
     /// For a safe alternative see [`downcast_ref`].
     ///
@@ -189,12 +155,10 @@ pub trait UnsafeOps<R: Transience> {
     /// with the incorrect type is *undefined behavior*.
     ///
     /// [`downcast_ref`]: AnyOps::downcast_ref
-    unsafe fn downcast_ref_unchecked<T>(&self) -> &T
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>;
+    unsafe fn downcast_ref_unchecked<T: Transient>(&self) -> &T
+        where T::Transience: CanRecoverFrom<R>;
 
-    /// Downcasts the mutable reference to a concrete type without runtime checks.
+    /// Downcasts the mutable reference to a concrete type without compile-time checks.
     ///
     /// For a safe alternative see [`downcast_mut`].
     ///
@@ -203,10 +167,8 @@ pub trait UnsafeOps<R: Transience> {
     /// with the incorrect type is *undefined behavior*.
     ///
     /// [`downcast_mut`]: AnyOps::downcast_mut
-    unsafe fn downcast_mut_unchecked<T>(&mut self) -> &mut T
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>;
+    unsafe fn downcast_mut_unchecked<T: Transient>(&mut self) -> &mut T
+        where T::Transience: CanRecoverFrom<R>;
 
     /// Cast to another `Transience` without enforcing sub-typing relationships.
     ///
@@ -219,8 +181,7 @@ pub trait UnsafeOps<R: Transience> {
     ///
     /// [`transcend`]: AnyOps::transcend
     unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: Transience;
+        where R2: Transience;
 
     /// Cast to another `Transience` without enforcing sub-typing relationships.
     ///
@@ -233,8 +194,7 @@ pub trait UnsafeOps<R: Transience> {
     ///
     /// [`transcend_ref`]: AnyOps::transcend_ref
     unsafe fn transcend_ref_unbounded<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: Transience;
+        where R2: Transience;
 
     /// Cast to another `Transience` without enforcing sub-typing relationships.
     ///
@@ -247,78 +207,70 @@ pub trait UnsafeOps<R: Transience> {
     ///
     /// [`transcend_mut`]: AnyOps::transcend_mut
     unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: Transience;
+        where R2: Transience;
 }
 
-impl<'a, R: Transience> AnyOps<R> for (dyn Any<R> + 'a) {
+impl<R: Transience> AnyOps<R> for dyn Any<R> + '_ {
     fn is<T: Transient>(&self) -> bool {
         self.type_id() == TypeId::of::<T::Static>()
     }
 }
 
-impl<'a, R: Transience> UnsafeOps<R> for (dyn Any<R> + 'a) {
+impl<R: Transience> UnsafeOps<R> for dyn Any<R> + '_ {
 
-    unsafe fn downcast_unchecked<T>(self: Box<Self>) -> Box<T>
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>,
+    unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
+        where T::Transience: CanRecoverFrom<R>,
     {
         // The caller is expected to ensure that the inner type is `T::Static`,
         // which the `Transient` trait guarantees has the same layout as `T`,
         // so the pointer casts are safe. The trait bound on `T::Transience`
         // ensures that the lifetime parameters of the returned type satisfy
         // the necessary subtyping relationships.
-        Box::from_raw(Box::into_raw(self) as *mut T)
+        Box::from_raw(Box::into_raw(self).cast())
     }
 
-    unsafe fn downcast_ref_unchecked<T>(&self) -> &T
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>
+    unsafe fn downcast_ref_unchecked<T: Transient>(&self) -> &T
+        where T::Transience: CanRecoverFrom<R>
     {
         // The caller is expected to ensure that the inner type is `T::Static`,
         // which the `Transient` trait guarantees has the same layout as `T`,
         // so the pointer casts are safe. The trait bound on `T::Transience`
         // ensures that the lifetime parameters of the returned type satisfy
         // the necessary subtyping relationships.
-        &*(self as *const dyn Any<R> as *const T)
+        &*(self as *const Self).cast()
     }
 
-    unsafe fn downcast_mut_unchecked<T>(&mut self) -> &mut T
-    where
-        T: Transient,
-        T::Transience: CanRecoverFrom<R>
+    unsafe fn downcast_mut_unchecked<T: Transient>(&mut self) -> &mut T
+        where T::Transience: CanRecoverFrom<R>
     {
         // The caller is expected to ensure that the inner type is `T::Static`,
         // which the `Transient` trait guarantees has the same layout as `T`,
         // so the pointer casts are safe. The trait bound on `T::Transience`
         // ensures that the lifetime parameters of the returned type satisfy
         // the necessary subtyping relationships.
-        &mut *(self as *mut dyn Any<R> as *mut T)
+        &mut *(self as *mut Self).cast()
     }
 
     unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: Transience
+        where R2: Transience
     {
         // `Box<dyn Any<_>>` always has the same layout regardless of the
         // transience so transmuting the type is safe, and the caller is
         // expected to ensure that the transience is compatible.
         std::mem::transmute(self)
     }
+
     unsafe fn transcend_ref_unbounded<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: Transience
+        where R2: Transience
     {
         // `&dyn Any<_>` always has the same layout regardless of the
         // transience so transmuting the type is safe, and the caller is
         // expected to ensure that the transience is compatible.
         std::mem::transmute(self)
     }
+
     unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: Transience
+        where R2: Transience
     {
         // `&mut dyn Any<_>` always has the same layout regardless of the
         // transience so transmuting the type is safe, and the caller is
@@ -327,7 +279,7 @@ impl<'a, R: Transience> UnsafeOps<R> for (dyn Any<R> + 'a) {
     }
 }
 
-impl<'a, R: Transience> std::fmt::Debug for (dyn Any<R> + 'a) {
+impl<R: Transience> std::fmt::Debug for dyn Any<R> + '_ {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Any").finish_non_exhaustive()
     }
@@ -336,7 +288,7 @@ impl<'a, R: Transience> std::fmt::Debug for (dyn Any<R> + 'a) {
 
 #[test]
 #[allow(unused)]
-fn test2<'a>() {
+fn test2() {
     use crate::Co;
 
     let val = 5;
@@ -348,6 +300,7 @@ fn test2<'a>() {
     assert_eq!(erased[1].downcast_ref::<&i32>().unwrap(), &valref);
     assert_eq!(erased[2].downcast_ref::<&&i32>().unwrap(), &valrefref);
 }
+
 
 #[test]
 #[allow(unused)]
@@ -432,6 +385,4 @@ fn test_any<'a>() {
 
     let erased: &dyn Any = &value;
     let _: &usize = erased.downcast_ref().unwrap();
-
 }
-
