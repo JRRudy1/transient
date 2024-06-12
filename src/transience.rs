@@ -1,3 +1,5 @@
+//! Defines the `Transience` trait and implementations.
+use std::marker::PhantomData;
 
 /// Unsafe marker trait for types used to establish the [variance] for each
 /// lifetime parameter of a struct.
@@ -32,7 +34,7 @@ impl Transience for Timeless {}
 ///
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug)]
-pub struct Inv<'a>(fn(&'a ()) -> &'a ());
+pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
 impl<'a> Transience for Inv<'a> {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
@@ -45,7 +47,7 @@ impl<'a> Transience for Inv<'a> {}
 ///
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug)]
-pub struct Co<'a>(&'a ());
+pub struct Co<'a>(PhantomData<&'a ()>);
 impl<'a> Transience for Co<'a> {}
 
 /// Used to set the [variance](https://doc.rust-lang.org/nomicon/subtyping.html)
@@ -58,7 +60,7 @@ impl<'a> Transience for Co<'a> {}
 ///
 /// See the [`Transience`] documentation for more information.
 #[derive(Clone, Copy, Debug)]
-pub struct Contra<'a>(fn(&'a ()));
+pub struct Contra<'a>(PhantomData<fn(&'a ())>);
 impl<'a> Transience for Contra<'a> {}
 
 
@@ -148,9 +150,9 @@ unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Contra<'a> {}
 // ************************************************************** //
 
 
-
-/// Implements the transitions between each scalar transience and a
-/// 2- or 3-tuple of compatible transiences.
+/// Private macro implementing the transitions between each scalar 
+/// transience and a 1-, 2-, or 3-tuple of compatible transiences. 
+/// This is necessary because blanket impls would overlap.
 macro_rules! impl_scalar_to_tuples {
     ( $($typ:ty),* ) => {
         $(
