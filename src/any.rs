@@ -1,23 +1,27 @@
-
+//! Analogue to the `std::any` module, containing a re-implementation of [`Any`] 
+//! with support for non-`'static` types alongside re-exports of [`TypeId`], 
+//! [`type_name`], and [`type_name_of_val`].
 use crate::{
     transient::Transient,
     transience::{Transience, CanRecoverFrom, CanTranscendTo}
 };
+pub use std::any::{type_name, type_name_of_val};
+
+/// Re-export
 pub use std::any::TypeId;
 
-
 /// A trait to emulate dynamic typing, with support for non-`'static` types.
-///
-/// This trait is a near drop-in replacement for the [`std::any::Any`] trait,
-/// with zero run-time overhead.
+/// Methods for this trait object are defined on the [`AnyOps`] and [`UnsafeOps`]
+/// extension traits.
 ///
 /// # Differences from `std::any::Any`
-/// - Types must first implement (or derive) the [`Transient`] trait.
-/// - In addition to the importing the `Any` trait, the `AnyOps` trait must also
-/// be brought into scope for the methods to become available. This is necessary
-/// because crates cannot define inherent methods on foreign types (which trait
-/// objects are considered to be), so they must be defined on an extension trait
-/// instead.
+/// - Types must first implement (or derive) the [`Transient`] trait before the
+/// blanket impl for all `T: Transient` will apply to them.
+/// - In addition to importing the `Any` trait, the [`AnyOps`] trait must also
+/// be brought into scope for the `dyn Any` methods to become available. An
+/// additional extension trait [`UnsafeOps`] can also be imported to gain
+/// access to `unsafe` operations on the `dyn Any` object, but make sure to
+/// review the safety requirements before using them.
 /// - Non-`'static` types can be erased by parameterizing the trait with the
 /// desired [`Transience`], which the compiler will ensure is compatible. Types
 /// that *are* `'static` can use any `Transience` they want, or exclude the
@@ -32,19 +36,20 @@ pub use std::any::TypeId;
 /// methods such as [`transcend`][AnyOps::transcend] can be used to adjust the
 /// transience at a later time. Note that if the transience is upcast to a
 /// shorter lifetime (or a longer lifetime in the *contravariant* case), then
-/// it can only be [`downcast`][AnyOps::downcast] to the shortened lifetime
-/// instead of the original.
+/// it can only be safely [`downcast`][AnyOps::downcast] to the shortened lifetime
+/// instead of the original (but if you are brave and/or careful, `unsafe`
+/// methods such as [`transcend_unbounded`][UnsafeOps::transcend_unbounded]
+/// can be used to get around this).
 /// - The `*_unchecked` methods do not require nightly builds.
 /// - Only `Box`s using the `Global` allocator are supported.
+/// - Only `Sized` types are supported.
 pub trait Any<R: Transience = ()> {
     /// Gets the `TypeId` of `self`.
     fn type_id(&self) -> TypeId;
 }
 
-impl<T, R: Transience> Any<R> for T
-where
-    T: Transient + ?Sized,
-    T::Transience: CanTranscendTo<R>,
+impl<T: Transient, R: Transience> Any<R> for T
+    where T::Transience: CanTranscendTo<R>,
 {
     fn type_id(&self) -> TypeId {
         TypeId::of::<T::Static>()
@@ -58,11 +63,26 @@ where
 /// [`Transience`], and cannot be implemented directly.
 pub trait AnyOps<R: Transience>: UnsafeOps<R> {
 
-    /// Returns `true` if the inner type is the same as `T::Static`.
+    /// Returns `true` if the concrete type of the erased object is `T`.
+    ///
+    /// Slight caveat: this method is _not actually_ comparing the erased type
+    /// (call it `E`) to the given type `T`; in reality, it is comparing
+    /// `E::Static` to `T::Static` as defined in their [`Transient`] impls.
+    /// Assuming `Transient` was implemented correctly for these types, which
+    /// the `unsafe` implementor pinky-promised to do, then this comparison is
+    /// essentially equivalent. However, this only verifies the "static identity"
+    /// of the type, ignoring any lifetime information, so an erased type
+    /// `&'short i32` will return `true` when compared to `&'any i32`, even
+    /// when the lifetimes do not match. This is not a problem when used from
+    /// from safe code since the other mechanisms in this crate enforce the
+    /// lifetime compatibilities, but `unsafe` code **must not** assume that
+    /// it can freely cast from `E` to `T` with no regard for lifetimes just
+    /// because this method returned `true`.
     fn is<T: Transient>(&self) -> bool;
 
     /// Attempt to downcast the box to a concrete type with its lifetime
-    /// parameters restored.
+    /// parameters restored, returning the original in the `Err` variant
+    /// if the type was incorrect.
     fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
         where T::Transience: CanRecoverFrom<R>
     {
@@ -223,7 +243,7 @@ impl<R: Transience> UnsafeOps<R> for dyn Any<R> + '_ {
     {
         // The caller is expected to ensure that the inner type is `T::Static`,
         // which the `Transient` trait guarantees has the same layout as `T`,
-        // so the pointer casts are safe. The trait bound on `T::Transience`
+        // so the pointer cast is safe. The trait bound on `T::Transience`
         // ensures that the lifetime parameters of the returned type satisfy
         // the necessary subtyping relationships.
         Box::from_raw(Box::into_raw(self).cast())
