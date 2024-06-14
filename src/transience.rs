@@ -4,7 +4,7 @@
 //! transiences.
 use std::marker::PhantomData;
 
-/// Unsafe marker trait for types used to establish the [variance] of a type with 
+/// Marker trait for types used to establish the [variance] of a type with 
 /// respect to each of its lifetime parameters, including [`Co`], [`Contra`], 
 /// [`Inv`], [`Timeless`], and tuples combining them.
 ///
@@ -137,72 +137,16 @@ use std::marker::PhantomData;
 /// [`std::mem::transmute`] and raw pointer casts (at your own risk, of course).
 /// 
 /// [`Transience` associated type]: crate::Transient::Transience
-/// [`AnyOps::transcend`]: [crate::AnyOps::transcend]
-/// [`transcend`]: [crate::AnyOps::transcend]
+/// [`Transcend::transcend`]: crate::Transcend::transcend
+/// [`transcend`]: crate::Transcend::transcend
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
-/// [`downcast`]: [crate::AnyOps::downcast]
-/// [`transcend_unbounded`]: [crate::UnsafeOps::transcend_unbounded]
+/// [`downcast`]: crate::Downcast::downcast
+/// [`transcend_unbounded`]: crate::Transcend::transcend_unbounded
 pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 
-/// Used as the `Transience` of a type to declare that it is `'static` and not 
-/// dependent on any lifetime parameters.
-/// 
-/// Such types only contain owned data and static references, and are thus much
-/// safer to work with and allow several restrictions imposed by the crate to
-/// be loosened. The [`transient::Any`][crate::Any] trait is parameterized with
-/// this transience by default so that it can mimic the simplicity of the
-/// [`std::any::Any`] trait in the simple case of `'static` types.
-pub type Timeless = ();
-impl Transience for Timeless {}
 
-/// Used to declare an [_invariant_] relationship between a type and its lifetime 
-/// parameter `'a`.
-/// 
-/// An *invariant* type is one for which the compiler cannot safely assume that
-/// its lifetime may be shortened *or* lengthened (e.g. `'b` in `&'a mut &'b T`).
-/// Such a type must therefore match the expected lifetime exactly when passed to
-/// a function.
-///
-/// See the [`Transience`] documentation for more information.
-/// 
-/// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
-#[derive(Clone, Copy, Debug)]
-pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
-impl<'a> Transience for Inv<'a> {}
-
-/// Used to declare an [_covariant_] relationship between a type and its lifetime 
-/// parameter `'a`.
-///
-/// A *covariant* type is one for which the compiler can safely *shorten* its
-/// lifetime parameter as needed when passing it to a function; for example,
-/// `&'a T` is *covariant* w.r.t. `'a`, so `&'static str` can be used where
-/// `&'short str` is expected.
-///
-/// See the [`Transience`] documentation for more information.
-/// 
-/// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
-#[derive(Clone, Copy, Debug)]
-pub struct Co<'a>(PhantomData<&'a ()>);
-impl<'a> Transience for Co<'a> {}
-
-/// Used to declare an [_contravariant_] relationship between a type and its lifetime 
-/// parameter `'a`.
-/// 
-/// A *contravariant* type is one for which the compiler can safely *lengthen*
-/// its lifetime parameter as needed when passing it to a function; for example,
-/// `fn(&'a str)` is *contravariant* w.r.t. `'a`, so `fn(&'short str)` can be
-/// used where `fn(&'static str)` is expected.
-///
-/// See the [`Transience`] documentation for more information.
-/// 
-/// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
-#[derive(Clone, Copy, Debug)]
-pub struct Contra<'a>(PhantomData<fn(&'a ())>);
-impl<'a> Transience for Contra<'a> {}
-
-
-/// Marker trait indicating that the implementing [`Transience`] can safely
-/// upcast to the parameterizing `Transience`.
+/// Unsafe marker trait indicating that the implementing [`Transience`] can 
+/// safely upcast to the parameterizing `Transience`.
 ///
 /// When `R: Transience` implements `CanTranscendTo<Other>`, it is making an
 /// `unsafe` assertion that it is a [subtype] of `Other` and can safely be used
@@ -210,7 +154,7 @@ impl<'a> Transience for Contra<'a> {}
 /// this implementation empowers a type [`T: Transient<Transience=R>`] to be
 /// erased to [`dyn Any<Other>`] in addition the `dyn Any<R>` suggested by
 /// its `Transient` impl. Additionally, the existence of this impl allows the
-/// [`AnyOps::transcend::<Other>`] method to be called to convert `dyn Any<R>`
+/// [`Transcend::transcend::<Other>`] method to be called to convert `dyn Any<R>`
 /// to `dyn Any<Other>`. Either of these operations would result in undefined
 /// behavior if `R` was not actually a subtype of `Other`, hence the `unsafe`
 /// declaration on this trait.
@@ -239,25 +183,25 @@ impl<'a> Transience for Contra<'a> {}
 /// Finally, some convenience implementations such as `R` --> `(R,)` and
 /// `(R,)` --> `R` are provided.
 ///
-/// # SAFETY
+/// # Safety
 /// This trait must only be implemented for *valid* conversions in accordance
 /// with [subtype] relationships as discussed above. Implementing this trait
 /// for an *invalid* conversion (such as shortening the lifetime of a
 /// *contravariant* type) can lead to undefined behavior.
 ///
-/// [`T: Transient<Transience=R>`]: [crate::Transient]
-/// [`dyn Any<Other>`]: [crate::Any]
-/// [`AnyOps::transcend::<Other>`]: [crate::AnyOps::transcend]
+/// [`T: Transient<Transience=R>`]: crate::Transient
+/// [`dyn Any<Other>`]: crate::Any
+/// [`Transcend::transcend::<Other>`]: crate::Transcend::transcend
 /// [subtype]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait CanTranscendTo<Other> {}
 
 
-/// Marker trait indicating that the implementing [`Transience`] can be safely
-/// recovered from the parameterizing `Transience`.
+/// Unsafe marker trait indicating that the implementing [`Transience`] can be 
+/// safely recovered from the parameterizing `Transience`.
 ///
 /// When `R: Transience` implements `CanRecoverFrom<Other>`, it empowers a type
 /// [`T: Transient<Transience=R>`] to be "recovered from" [`dyn Any<Other>`]
-/// when downcasting using the [`AnyOps::downcast::<R>`] and similar methods.
+/// when downcasting using the [`Downcast::downcast::<R>`] and similar methods.
 /// Allowing this operation when not appropriate, such as allowing `&'long i32`
 /// (which implements `Transient<Transience=Co<'long>>`) to be recovered from
 /// a `dyn Any<Co<'short>>` which may have started as `&'short i32`, could
@@ -284,14 +228,77 @@ pub unsafe trait CanTranscendTo<Other> {}
 /// doesn't sacrifice flexibility because the only safe way to obtain `dyn Any<())>`
 /// in the first place is if the original type was `T: Transient<Transience=()>`.
 ///
-/// # SAFETY
+/// # Safety
 /// This trait must only be implemented for *valid* conversions. Implementing
 /// this trait for an *invalid* conversion (such as shortening the lifetime
 /// of a *contravariant* type) can lead to undefined behavior.
 /// 
-/// [`AnyOps::downcast::<R>`]: [crate::AnyOps::downcast]
+/// [`Downcast::downcast::<R>`]: crate::Downcast::downcast
 /// [subtype]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait CanRecoverFrom<From> {}
+
+
+/// Used as the `Transience` of a type to declare that it is `'static` and not 
+/// dependent on any lifetime parameters.
+/// 
+/// Such types only contain owned data and static references, and are thus much
+/// safer to work with and allow several restrictions imposed by the crate to
+/// be loosened. The [`transient::Any`][crate::Any] trait is parameterized with
+/// this transience by default so that it can mimic the simplicity of the
+/// [`std::any::Any`] trait in the simple case of `'static` types.
+pub type Timeless = ();
+impl Transience for Timeless {}
+
+
+/// Used to declare an [_invariant_] relationship between a type and its lifetime 
+/// parameter.
+/// 
+/// An *invariant* type is one for which the compiler cannot safely assume that
+/// its lifetime may be shortened *or* lengthened (e.g. `'b` in `&'a mut &'b T`).
+/// Such a type must therefore match the expected lifetime exactly when passed to
+/// a function.
+///
+/// See the [`Transience`] documentation for more information.
+/// 
+/// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
+#[derive(Clone, Copy, Debug)]
+pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
+
+impl<'a> Transience for Inv<'a> {}
+
+
+/// Used to declare an [_covariant_] relationship between a type and its lifetime 
+/// parameter.
+///
+/// A *covariant* type is one for which the compiler can safely *shorten* its
+/// lifetime parameter as needed when passing it to a function; for example,
+/// `&'a T` is *covariant* w.r.t. `'a`, so `&'static str` can be used where
+/// `&'short str` is expected.
+///
+/// See the [`Transience`] documentation for more information.
+/// 
+/// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
+#[derive(Clone, Copy, Debug)]
+pub struct Co<'a>(PhantomData<&'a ()>);
+
+impl<'a> Transience for Co<'a> {}
+
+
+/// Used to declare an [_contravariant_] relationship between a type and its lifetime 
+/// parameter.
+/// 
+/// A *contravariant* type is one for which the compiler can safely *lengthen*
+/// its lifetime parameter as needed when passing it to a function; for example,
+/// `fn(&'a str)` is *contravariant* w.r.t. `'a`, so `fn(&'short str)` can be
+/// used where `fn(&'static str)` is expected.
+///
+/// See the [`Transience`] documentation for more information.
+/// 
+/// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
+#[derive(Clone, Copy, Debug)]
+pub struct Contra<'a>(PhantomData<fn(&'a ())>);
+
+impl<'a> Transience for Contra<'a> {}
 
 
 // ************************************************************************* //
@@ -324,7 +331,6 @@ unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Co<'a> {}
 unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Contra<'a> {}
 
 // ************************************************************** //
-
 
 /// Private macro implementing the transitions between each scalar 
 /// transience and a 1-, 2-, or 3-tuple of compatible transiences. 
