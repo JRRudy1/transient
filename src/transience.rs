@@ -1,11 +1,11 @@
-//! Defines the [`Transience`] trait as well as the [`Inv`], [`Co`], and [`Contra`] 
-//! structs that implement it. This module also defines the [`CanTranscendTo`] and 
-//! [`CanRecoverFrom`] traits that establish the allowable transitions between 
+//! Defines the [`Transience`] trait as well as the [`Inv`], [`Co`], and [`Contra`]
+//! structs that implement it. This module also defines the [`CanTranscendTo`] and
+//! [`CanRecoverFrom`] traits that establish the allowable transitions between
 //! transiences.
 use std::marker::PhantomData;
 
-/// Marker trait for types used to establish the [variance] of a type with 
-/// respect to each of its lifetime parameters, including [`Co`], [`Contra`], 
+/// Marker trait for types used to establish the [variance] of a type with
+/// respect to each of its lifetime parameters, including [`Co`], [`Contra`],
 /// [`Inv`], [`Timeless`], and tuples combining them.
 ///
 /// Note that even though most types are *covariant* in reality, this crate
@@ -17,21 +17,21 @@ use std::marker::PhantomData;
 ///
 /// To maximize the flexibility of this crate's functionality, transitions
 /// between compatible `Transiences` are supported. See the documentation for
-/// the [`CanTranscendTo`] and[ `CanRecoverFrom`] traits for an introduction 
-/// to these transitions and when they are used, as well as a discussion of 
+/// the [`CanTranscendTo`] and[ `CanRecoverFrom`] traits for an introduction
+/// to these transitions and when they are used, as well as a discussion of
 /// why certain transitions are allowed while others are forbidden.
 ///
-/// 
+///
 /// ## Valid transitions table
-/// The following table summarizes the allowable transitions that can be 
-/// made between (single-lifetime) transiences, where the _rows_ represent 
-/// the starting point for a type (i.e. the `Transience` it defines in its 
-/// `Transient` impl), and the _columns_ represent a transience it wishes to 
-/// transition to (i.e. when being cast to `dyn Any<_>` or calling the 
-/// [`transcend`] method). Upon being [`downcast`] the trait object 
-/// would then return to a _row_ in the table, ideally back where it started 
+/// The following table summarizes the allowable transitions that can be
+/// made between (single-lifetime) transiences, where the _rows_ represent
+/// the starting point for a type (i.e. the `Transience` it defines in its
+/// `Transient` impl), and the _columns_ represent a transience it wishes to
+/// transition to (i.e. when being cast to `dyn Any<_>` or calling the
+/// [`transcend`] method). Upon being [`downcast`] the trait object
+/// would then return to a _row_ in the table, ideally back where it started
 /// (although not always, as discussed in the next section):
-/// 
+///
 /// <table style="width:80%">
 ///   <tr style="font-size: 12px;">
 ///     <th style="width:1%;"> </th>
@@ -114,28 +114,28 @@ use std::marker::PhantomData;
 ///     <td align="center" style="background-color:lightgrey;"> yes </td>
 ///   </tr>
 /// </table>
-/// 
+///
 /// ## Lossy transitions
-/// The yellow transitions marked with an asterisk in the above table are allowed, 
-/// but lossy; the recovered lifetime will be reduced (`Co`) or increased (`Contra`). 
-/// For example, a type `&'long i32` with a transience of `Co<'long>` (middle row) 
-/// can be safely erased to the trait object `dyn Any<Co<'short>>` (3rd column) by 
-/// shortening its lifetime. However, when we want to 
-/// [`downcast`] the opaque trait object back into its concrete type, we _cannot_ just 
-/// assume (at least under the implementation of this crate) that we can safely recover 
-/// a `'long` lifetime from the `'short` lifetime of the trait object; 
-/// instead, we can only safely recover `&'short i32` from the `dyn Any<Co<'short>>`. 
-/// As a result, even though the underlying reference should actually be valid for the 
-/// `'long` lifetime, we end up with a reference that the borrow-checker only believes 
-/// to be valid for the `'short` lifetime. This may seem silly if you happen to be 
-/// dealing with a case where _you know_ what you are working with and that the 
-/// `'long` lifetime _is_ valid; but the whole point of type-erasure is that 
-/// sometimes you _dont_ know/care, or you don't want to compiler to know/care, 
-/// and sometimes ignorance has a cost. On the bright side, if you _really 
+/// The yellow transitions marked with an asterisk in the above table are allowed,
+/// but lossy; the recovered lifetime will be reduced (`Co`) or increased (`Contra`).
+/// For example, a type `&'long i32` with a transience of `Co<'long>` (middle row)
+/// can be safely erased to the trait object `dyn Any<Co<'short>>` (3rd column) by
+/// shortening its lifetime. However, when we want to
+/// [`downcast`] the opaque trait object back into its concrete type, we _cannot_ just
+/// assume (at least under the implementation of this crate) that we can safely recover
+/// a `'long` lifetime from the `'short` lifetime of the trait object;
+/// instead, we can only safely recover `&'short i32` from the `dyn Any<Co<'short>>`.
+/// As a result, even though the underlying reference should actually be valid for the
+/// `'long` lifetime, we end up with a reference that the borrow-checker only believes
+/// to be valid for the `'short` lifetime. This may seem silly if you happen to be
+/// dealing with a case where _you know_ what you are working with and that the
+/// `'long` lifetime _is_ valid; but the whole point of type-erasure is that
+/// sometimes you _dont_ know/care, or you don't want to compiler to know/care,
+/// and sometimes ignorance has a cost. On the bright side, if you _really
 /// are_ confident that `'long` is valid, you can `unsafe`-ly fix it using either
-/// the [`transcend_unbounded`] method or conventional hacks like 
+/// the [`transcend_unbounded`] method or conventional hacks like
 /// [`std::mem::transmute`] and raw pointer casts (at your own risk, of course).
-/// 
+///
 /// [`Transience` associated type]: crate::Transient::Transience
 /// [`Transcend::transcend`]: crate::Transcend::transcend
 /// [`transcend`]: crate::Transcend::transcend
@@ -144,8 +144,7 @@ use std::marker::PhantomData;
 /// [`transcend_unbounded`]: crate::Transcend::transcend_unbounded
 pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 
-
-/// Unsafe marker trait indicating that the implementing [`Transience`] can 
+/// Unsafe marker trait indicating that the implementing [`Transience`] can
 /// safely upcast to the parameterizing `Transience`.
 ///
 /// When `R: Transience` implements `CanTranscendTo<Other>`, it is making an
@@ -195,8 +194,7 @@ pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 /// [subtype]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait CanTranscendTo<Other> {}
 
-
-/// Unsafe marker trait indicating that the implementing [`Transience`] can be 
+/// Unsafe marker trait indicating that the implementing [`Transience`] can be
 /// safely recovered from the parameterizing `Transience`.
 ///
 /// When `R: Transience` implements `CanRecoverFrom<Other>`, it empowers a type
@@ -232,15 +230,14 @@ pub unsafe trait CanTranscendTo<Other> {}
 /// This trait must only be implemented for *valid* conversions. Implementing
 /// this trait for an *invalid* conversion (such as shortening the lifetime
 /// of a *contravariant* type) can lead to undefined behavior.
-/// 
+///
 /// [`Downcast::downcast::<R>`]: crate::Downcast::downcast
 /// [subtype]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait CanRecoverFrom<From> {}
 
-
-/// Used as the `Transience` of a type to declare that it is `'static` and not 
+/// Used as the `Transience` of a type to declare that it is `'static` and not
 /// dependent on any lifetime parameters.
-/// 
+///
 /// Such types only contain owned data and static references, and are thus much
 /// safer to work with and allow several restrictions imposed by the crate to
 /// be loosened. The [`transient::Any`][crate::Any] trait is parameterized with
@@ -249,25 +246,23 @@ pub unsafe trait CanRecoverFrom<From> {}
 pub type Timeless = ();
 impl Transience for Timeless {}
 
-
-/// Used to declare an [_invariant_] relationship between a type and its lifetime 
+/// Used to declare an [_invariant_] relationship between a type and its lifetime
 /// parameter.
-/// 
+///
 /// An *invariant* type is one for which the compiler cannot safely assume that
 /// its lifetime may be shortened *or* lengthened (e.g. `'b` in `&'a mut &'b T`).
 /// Such a type must therefore match the expected lifetime exactly when passed to
 /// a function.
 ///
 /// See the [`Transience`] documentation for more information.
-/// 
+///
 /// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
 
 impl<'a> Transience for Inv<'a> {}
 
-
-/// Used to declare an [_covariant_] relationship between a type and its lifetime 
+/// Used to declare an [_covariant_] relationship between a type and its lifetime
 /// parameter.
 ///
 /// A *covariant* type is one for which the compiler can safely *shorten* its
@@ -276,30 +271,28 @@ impl<'a> Transience for Inv<'a> {}
 /// `&'short str` is expected.
 ///
 /// See the [`Transience`] documentation for more information.
-/// 
+///
 /// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Co<'a>(PhantomData<&'a ()>);
 
 impl<'a> Transience for Co<'a> {}
 
-
-/// Used to declare an [_contravariant_] relationship between a type and its lifetime 
+/// Used to declare an [_contravariant_] relationship between a type and its lifetime
 /// parameter.
-/// 
+///
 /// A *contravariant* type is one for which the compiler can safely *lengthen*
 /// its lifetime parameter as needed when passing it to a function; for example,
 /// `fn(&'a str)` is *contravariant* w.r.t. `'a`, so `fn(&'short str)` can be
 /// used where `fn(&'static str)` is expected.
 ///
 /// See the [`Transience`] documentation for more information.
-/// 
+///
 /// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Contra<'a>(PhantomData<fn(&'a ())>);
 
 impl<'a> Transience for Contra<'a> {}
-
 
 // ************************************************************************* //
 // ************************* SAFETY-CRITICAL LOGIC! ************************ //
@@ -332,8 +325,8 @@ unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Contra<'a> {}
 
 // ************************************************************** //
 
-/// Private macro implementing the transitions between each scalar 
-/// transience and a 1-, 2-, or 3-tuple of compatible transiences. 
+/// Private macro implementing the transitions between each scalar
+/// transience and a 1-, 2-, or 3-tuple of compatible transiences.
 /// This is necessary because blanket impls would overlap.
 macro_rules! impl_scalar_to_tuples {
     ( $($typ:ty),* ) => {
@@ -358,10 +351,10 @@ macro_rules! impl_scalar_to_tuples {
 
         // scalar => 4-tuple* => scalar
         unsafe impl<'a, R1, R2, R3, R4> CanTranscendTo<(R1, R2, R3, R4)> for $typ
-            where $typ: CanTranscendTo<R1> + CanTranscendTo<R2> 
+            where $typ: CanTranscendTo<R1> + CanTranscendTo<R2>
                       + CanTranscendTo<R3> + CanTranscendTo<R4> {}
         unsafe impl<'a, R1, R2, R3, R4> CanRecoverFrom<(R1, R2, R3, R4)> for $typ
-            where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2> 
+            where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2>
                       + CanRecoverFrom<R3> + CanRecoverFrom<R4> {}
 
         // ------------------------------------------
@@ -403,7 +396,7 @@ macro_rules! impl_scalar_to_tuples {
         )*
     }
 }
-impl_scalar_to_tuples!{
+impl_scalar_to_tuples! {
     Co<'a>, Contra<'a>, Inv<'a>
 }
 
@@ -428,7 +421,7 @@ macro_rules! impl_equal_tuples {
         )*
     }
 }
-impl_equal_tuples!{
+impl_equal_tuples! {
     (A1,) => (A2,);
     (A1, B1,) => (A2, B2,);
     (A1, B1, C1,) => (A2, B2, C2,);

@@ -3,8 +3,8 @@
 use crate::any::{Any, TypeId};
 use crate::transience::Transience;
 
-/// Unsafe trait defining the lifetime-relationships of a potentially non-`'static` 
-/// type so that it can be safely erased to [`dyn Any`][crate::Any]. This trait can 
+/// Unsafe trait defining the lifetime-relationships of a potentially non-`'static`
+/// type so that it can be safely erased to [`dyn Any`][crate::Any]. This trait can
 /// be derived using the [`Transient` derive macro].
 ///
 /// # Implementing the `Transient` trait
@@ -217,24 +217,24 @@ use crate::transience::Transience;
 /// would be to wrap `T` in a newtype struct for which you can implement
 /// `Transient`, or request that the impl be added by this crate or the type's
 /// crate.
-/// 
+///
 /// # Safety
 /// - The [`Static`][Self::Static] associated type must be the same type as the
-/// implementing type, but with all lifetime parameters replaced by `'static` and 
-/// any non-`'static`-bounded type parameters `T` replaced by `T::Static` (for 
+/// implementing type, but with all lifetime parameters replaced by `'static` and
+/// any non-`'static`-bounded type parameters `T` replaced by `T::Static` (for
 /// which they must be bounded by `Transient`). Specifically, the type must have
 /// the same layout as `Self` so that `std::mem::transmute` and raw pointer casts
-/// pointer casts between them are sound, and the `std::any::TypeId` of the 
+/// pointer casts between them are sound, and the `std::any::TypeId` of the
 /// `Static` type must correctly identify the `Self` type.
 /// - The [`Transience`][Self::Transience] associate type must include a component
-/// for each lifetime parameter that accurately (or more conservatively) captures 
-/// the `Self` type's variance with respect to it, as detailed in the documentation 
-/// for the [`Transience`] trait and demonstrated in the sections above. For a 
-/// `'static` type this should be `()`, for a single-lifetime type it should be 
-/// [`Inv<'a>`] as a safe default or [`Co<'a>`]/[`Contra<'a>`] if appropriate, 
+/// for each lifetime parameter that accurately (or more conservatively) captures
+/// the `Self` type's variance with respect to it, as detailed in the documentation
+/// for the [`Transience`] trait and demonstrated in the sections above. For a
+/// `'static` type this should be `()`, for a single-lifetime type it should be
+/// [`Inv<'a>`] as a safe default or [`Co<'a>`]/[`Contra<'a>`] if appropriate,
 /// and for a multi-lifetime type this should be `(Inv<'a>, Inv<'b>, ...)` as a
-/// safe default with `Co` and `Contra` optionally substituted where appropriate. 
-/// Choosing `Co` or `Contra` for any lifetime parameter without respecting the 
+/// safe default with `Co` and `Contra` optionally substituted where appropriate.
+/// Choosing `Co` or `Contra` for any lifetime parameter without respecting the
 /// rules of [Subtyping and Variance], or excluding any independent lifetime
 /// parameter from the `Transience` is undefined behavior.
 ///
@@ -250,7 +250,6 @@ use crate::transience::Transience;
 /// [variances]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [Subtyping and Variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait Transient: Sized {
-
     /// Same as `Self` but with all lifetime parameters replaced by `'static`.
     ///
     /// See the [`Transient`] trait's docstring for examples and a discussion of
@@ -258,8 +257,8 @@ pub unsafe trait Transient: Sized {
     ///
     /// # SAFETY
     /// This must be equivalent to the implementing type, such that matching its
-    /// [`TypeId`] to that of a `dyn Any` trait objects is sufficient justification 
-    /// for performing a [`std::mem::transmute`] or raw pointer cast to it 
+    /// [`TypeId`] to that of a `dyn Any` trait objects is sufficient justification
+    /// for performing a [`std::mem::transmute`] or raw pointer cast to it
     /// (excluding lifetime considerations).
     type Static: 'static;
 
@@ -268,23 +267,23 @@ pub unsafe trait Transient: Sized {
     /// See the [`Transience`] docstring for a thorough explanation and examples.
     ///
     /// # SAFETY
-    /// This type must sufficiently capture the _variance_ characteristics of the 
-    /// type with respect to every one of its lifetime parameters as discussed in 
+    /// This type must sufficiently capture the _variance_ characteristics of the
+    /// type with respect to every one of its lifetime parameters as discussed in
     /// the documentation for the trait.
     type Transience: Transience;
-    
+
     #[doc(hidden)]
-    // attempts to validate the `Static` type and give a better error message if 
+    // attempts to validate the `Static` type and give a better error message if
     // set incorrectly, but this is not exhaustive and must be used to take effect
     const CHECK: () = check_static_type::<Self>();
 
-    /// Obtain the unique identifier assigned by the compiler to the 
+    /// Obtain the unique identifier assigned by the compiler to the
     /// [`Static`][Self::Static] variant of the type.
-    /// 
+    ///
     /// See the docstring for the [`TypeId`] type for a discussion of the subtle
-    /// differences from the related [`std::any::TypeId`], and the [`Any::type_id`] 
+    /// differences from the related [`std::any::TypeId`], and the [`Any::type_id`]
     /// method for an explanation of why this method is necessary.
-    /// 
+    ///
     /// See [`TypeId::of_val`] for an alternate method of obtaining the `TypeId`
     /// for a value with a concrete type.
     #[inline]
@@ -301,7 +300,10 @@ pub unsafe trait Transient: Sized {
     /// `dyn Any<Co>` even for trivial usages (although using `dyn Any<_>` and
     /// letting type-inference fill-in-the-blank will also work in some cases).
     #[inline]
-    fn erase<'a>(self: Box<Self>) -> Box<dyn Any<Self::Transience> + 'a> where Self: 'a {
+    fn erase<'a>(self: Box<Self>) -> Box<dyn Any<Self::Transience> + 'a>
+    where
+        Self: 'a,
+    {
         let () = Self::CHECK;
         self
     }
@@ -309,7 +311,10 @@ pub unsafe trait Transient: Sized {
     /// Convenience method to cast `&Self` to `&dyn Any<_>` with the
     /// transience defined in the `Transient` implementation.
     #[inline]
-    fn erase_ref<'a>(&self) -> &(dyn Any<Self::Transience> + 'a) where Self: 'a {
+    fn erase_ref<'a>(&self) -> &(dyn Any<Self::Transience> + 'a)
+    where
+        Self: 'a,
+    {
         let () = Self::CHECK;
         self
     }
@@ -317,7 +322,10 @@ pub unsafe trait Transient: Sized {
     /// Convenience method to cast `&mut Self` to `&mut dyn Any<_>` with the
     /// transience defined in the `Transient` implementation.
     #[inline]
-    fn erase_mut<'a>(&mut self) -> &mut (dyn Any<Self::Transience> + 'a) where Self: 'a {
+    fn erase_mut<'a>(&mut self) -> &mut (dyn Any<Self::Transience> + 'a)
+    where
+        Self: 'a,
+    {
         let () = Self::CHECK;
         self
     }
@@ -325,10 +333,11 @@ pub unsafe trait Transient: Sized {
 
 #[track_caller]
 const fn check_static_type<T: Transient>() {
-    if std::mem::size_of::<T>() != std::mem::size_of::<T::Static>() {
-        panic!("Size mismatch! `T::Static` should be the same as `T` \
-                but with its lifetimes replaced by `'static`")
-    }
+    assert!(
+        std::mem::size_of::<T>() == std::mem::size_of::<T::Static>(),
+        "Size mismatch! `T::Static` should be the same as `T` \
+          but with its lifetimes replaced by `'static`"
+    );
 }
 
 mod std_impls {
@@ -336,8 +345,8 @@ mod std_impls {
     use crate::{Co, Inv};
 
     use std::any::Any as StdAny;
-    use std::collections::HashMap;
     use std::borrow::{Cow, ToOwned};
+    use std::collections::HashMap;
 
     macro_rules! impl_refs {
         {
@@ -372,13 +381,13 @@ mod std_impls {
                 type Static = &'static mut &'static <$type_ as Transient>::Static;
                 type Transience = (Co<'_a>, Inv<'_b> $($(, $trans)+)?);
             }
-            
-            unsafe impl<'_a, '_b, $( $param $( : $bound1 $(+ $bounds )* )? ),*> 
+
+            unsafe impl<'_a, '_b, $( $param $( : $bound1 $(+ $bounds )* )? ),*>
             Transient for &'_a &'_b mut $type_ {
                 type Static = &'static &'static mut <$type_ as Transient>::Static;
                 type Transience = (Co<'_a>, Co<'_b> $($(, $trans)+)?);
             }
-            unsafe impl<'_a, '_b, $( $param $( : $bound1 $(+ $bounds )* )? ),*> 
+            unsafe impl<'_a, '_b, $( $param $( : $bound1 $(+ $bounds )* )? ),*>
             Transient for &'_a mut &'_b mut $type_ {
                 type Static = &'static mut &'static <$type_ as Transient>::Static;
                 type Transience = (Co<'_a>, Inv<'_b> $($(, $trans)+)?);
@@ -386,7 +395,7 @@ mod std_impls {
         }
     }
     use impl_refs;
-    
+
     macro_rules! impl_primatives {
         ( $($ty:ty),* $(,)? ) => {
             $(
@@ -398,8 +407,8 @@ mod std_impls {
             )*
         }
     }
-    
-    impl_primatives!{
+
+    impl_primatives! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
         f32, f64, String, Box<str>,
@@ -421,7 +430,7 @@ mod std_impls {
         type Static = Vec<T::Static>;
         type Transience = T::Transience;
     }
-    impl_refs!{ Vec<T> [T: Transient] (T::Transience) }
+    impl_refs! { Vec<T> [T: Transient] (T::Transience) }
 
     unsafe impl<K: Transient, V: Transient> Transient for HashMap<K, V> {
         type Static = HashMap<K::Static, V::Static>;
@@ -439,7 +448,8 @@ mod std_impls {
     }
 
     unsafe impl<'a, T: Transient + ToOwned> Transient for Cow<'a, T>
-        where T::Static: ToOwned
+    where
+        T::Static: ToOwned,
     {
         type Static = Cow<'static, T::Static>;
         type Transience = (Co<'a>, T::Transience);
@@ -470,7 +480,7 @@ mod std_impls {
 
 #[cfg(feature = "ndarray")]
 mod ndarray_impls {
-    use ndarray::{Array, ArrayView, ArrayViewMut, ArcArray, CowArray, Dimension};
+    use ndarray::{ArcArray, Array, ArrayView, ArrayViewMut, CowArray, Dimension};
 
     /// Requires the `ndarray` crate feature
     unsafe impl<T, D> crate::Transient for Array<T, D>
@@ -525,8 +535,8 @@ mod ndarray_impls {
 
 #[cfg(feature = "pyo3")]
 mod pyo3_impls {
-    use pyo3::{Py, Bound, PyRef, PyRefMut, Borrowed};
-    use pyo3::pyclass::{PyClass, boolean_struct::False};
+    use pyo3::pyclass::{boolean_struct::False, PyClass};
+    use pyo3::{Borrowed, Bound, Py, PyRef, PyRefMut};
 
     /// Requires the `pyo3` crate feature
     unsafe impl<T: 'static> crate::Transient for Py<T> {
@@ -563,7 +573,7 @@ mod pyo3_impls {
 mod numpy_impls {
 
     use ndarray::Dimension;
-    use numpy::{PyReadonlyArray, PyReadwriteArray, Element};
+    use numpy::{Element, PyReadonlyArray, PyReadwriteArray};
 
     /// Requires the `numpy` crate feature
     unsafe impl<'py, T, D> crate::Transient for PyReadonlyArray<'py, T, D>

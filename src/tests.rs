@@ -1,4 +1,3 @@
-
 /// Tests for a simple struct with no generic parameters.
 mod double {
     use crate::{Inv, Transient};
@@ -7,7 +6,6 @@ mod double {
     struct S<'a, T1, T2> {
         value1: &'a T1,
         value2: &'a T2,
-
     }
     unsafe impl<'a, T1: 'static, T2: 'static> Transient for S<'a, T1, T2> {
         type Static = S<'static, T1, T2>;
@@ -21,7 +19,7 @@ mod basic {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
-        value: &'a String
+        value: &'a String,
     }
     unsafe impl<'a> Transient for S<'a> {
         type Static = S<'static>;
@@ -31,7 +29,7 @@ mod basic {
     #[test]
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
-        let original: S<'_> = S{value: &value};
+        let original: S<'_> = S { value: &value };
         let erased: Box<dyn Any<Co<'_>> + '_> = Box::new(original.clone());
 
         // `S::Transience` is `Co<'a>` se we can erase to `Any<Co<'a>>`, but
@@ -43,9 +41,10 @@ mod basic {
         assert_eq!(*restored, original);
     }
     #[test]
-    pub(super) fn test_ref() { // single lifetime (derived `Transient` impl)
+    pub(super) fn test_ref() {
+        // single lifetime (derived `Transient` impl)
         let value = "qwer".to_string();
-        let original = S{value: &value};
+        let original = S { value: &value };
         let erased: &dyn Any<Co> = &original;
         assert_eq!(erased.type_id(), any::TypeId::of::<S>());
         let restored = erased.downcast_ref::<S>().unwrap();
@@ -54,7 +53,7 @@ mod basic {
     #[test]
     pub(super) fn test_mut() {
         let value = "qwer".to_string();
-        let mut original = S{value: &value};
+        let mut original = S { value: &value };
         let erased: &mut dyn Any<Co> = &mut original;
         assert_eq!(erased.type_id(), any::TypeId::of::<S>());
         let restored = erased.downcast_mut::<S>().unwrap().clone();
@@ -62,11 +61,10 @@ mod basic {
     }
 }
 
-
 /// Tests for a struct with generic parameters.
 mod generics {
-    use crate::*;
     use crate::any::*;
+    use crate::*;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
@@ -81,7 +79,7 @@ mod generics {
     #[test]
     pub(super) fn test_owned() {
         let value = "qwer".to_string();
-        let original = SS{value: &value};
+        let original = SS { value: &value };
         let erased: Box<dyn Any<Inv>> = Box::new(original.clone());
         assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast::<SS>().unwrap();
@@ -91,7 +89,7 @@ mod generics {
     #[test]
     pub(super) fn test_ref() {
         let value = "qwer".to_string();
-        let original = SS{value: &value};
+        let original = SS { value: &value };
         let erased: &dyn Any<Inv> = &original;
         assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_ref::<SS>().unwrap();
@@ -101,14 +99,13 @@ mod generics {
     #[test]
     pub(super) fn test_mut() {
         let value = "qwer".to_string();
-        let mut original = SS{value: &value};
+        let mut original = SS { value: &value };
         let erased: &mut dyn Any<Inv> = &mut original;
         assert_eq!(erased.type_id(), TypeId::of::<SS>());
         let restored = erased.downcast_mut::<SS>().unwrap().clone();
         assert_eq!(restored, original);
     }
 }
-
 
 #[test]
 fn variance_tests() {
@@ -122,7 +119,6 @@ mod mixed_lifetimes {
     use crate::*;
 
     type ContraCo<'s, 'l> = (Contra<'s>, Co<'l>);
-
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct M<'s, 'l> {

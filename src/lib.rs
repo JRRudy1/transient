@@ -17,15 +17,15 @@
 //!
 //! The crate provides a re-implemented [`Any`] trait that circumvents this limitation
 //! to allow type-erasure to be applied to *transient* (i.e. non-`'static`) types.
-//! This is achieved by modeling a Rust type as decomposable into separate components 
-//! for its _raw static data_ and its _lifetime parameters_, as embodied by the 
-//! `Static` and `Transience` associated types of the provided [`Transient`] trait. 
-//! In this implementation, the `Static` component is used to obtain the unique 
-//! [`TypeId`] of the type (which the compiler only hands out for `T: 'static`), 
-//! and the `Transience` is used as a generic parameter on the re-implemented 
-//! [`Any`] trait to bound the allowable transitions and uphold Rust's strict 
+//! This is achieved by modeling a Rust type as decomposable into separate components
+//! for its _raw static data_ and its _lifetime parameters_, as embodied by the
+//! `Static` and `Transience` associated types of the provided [`Transient`] trait.
+//! In this implementation, the `Static` component is used to obtain the unique
+//! [`TypeId`] of the type (which the compiler only hands out for `T: 'static`),
+//! and the `Transience` is used as a generic parameter on the re-implemented
+//! [`Any`] trait to bound the allowable transitions and uphold Rust's strict
 //! safety guarantees.
-//! 
+//!
 //! # Features
 //! - Near drop-in replacement for `std::any::Any` when dealing with `'static` types
 //! - Familiar extension beyond `std::any::Any` when dealing with non-`'static` types
@@ -35,7 +35,7 @@
 //! - Supports types with any number of generic lifetime parameters with arbitrary
 //! variance combinations
 //! - Supports types with any number of generic type parameters
-//! - Provides the [`macro@Transient`] `derive` macro to implement the `Transient` 
+//! - Provides the [`macro@Transient`] `derive` macro to implement the `Transient`
 //! trait for most types
 //!
 //! # Limitations
@@ -57,7 +57,7 @@
 //! types, it can be derived for most custom types, and it is easy to implement
 //! by hand when more flexibility is needed. Implementations for common types
 //! provided by some 3rd party libraries are also available behind eponymous
-//! feature flags (currently only `ndarray`, `pyo3`, and `numpy`, but feel free 
+//! feature flags (currently only `ndarray`, `pyo3`, and `numpy`, but feel free
 //! to submit an issue/PR requesting others).
 //!
 //! In the trivial case of a `'static` type with no lifetime parameters, the
@@ -127,20 +127,20 @@
 //! # Overview
 //!
 //! ## The `Any` trait
-//! The most important item provided by this crate is the [`Any`] trait, which is 
-//! modeled after the standard library's [`std::any::Any`] trait. Much like the 
-//! stdlib version, this trait typically appears as the opaque `dyn Any` trait 
-//! object that can be _downcast_ back into an original concrete type. The key 
-//! difference is that, while the `std::any::Any` trait is implemented for all 
-//! `T: 'static`, the [`transient::Any`] trait is instead implemented for all 
+//! The most important item provided by this crate is the [`Any`] trait, which is
+//! modeled after the standard library's [`std::any::Any`] trait. Much like the
+//! stdlib version, this trait typically appears as the opaque `dyn Any` trait
+//! object that can be _downcast_ back into an original concrete type. The key
+//! difference is that, while the `std::any::Any` trait is implemented for all
+//! `T: 'static`, the [`transient::Any`] trait is instead implemented for all
 //! `T: Transient` (as discussed in the next section). The `transient::Any`
-//! trait is also different in that it has a generic type parameter know as 
-//! he `Transience` (discussed in another upcoming section) which is used to 
-//! enable the support for non-`'static` types that forms the motivation for 
-//! this crate. 
-//! 
+//! trait is also different in that it has a generic type parameter know as
+//! he `Transience` (discussed in another upcoming section) which is used to
+//! enable the support for non-`'static` types that forms the motivation for
+//! this crate.
+//!
 //! ## The `Transient` Trait
-//! The [`Transient`] trait is an extremely simple, but `unsafe` trait consisting 
+//! The [`Transient`] trait is an extremely simple, but `unsafe` trait consisting
 //! only of two associated types:
 //! ```skip
 //! pub unsafe trait Transient {
@@ -164,23 +164,23 @@
 //! the lifetime (and *[variance]*) information that the static type is missing.
 //! To accomplish this, the `transient` crate provides the `Co`, `Contra` and `Inv`
 //! structs that exhibit the 3 forms of variance for a single lifetime parameter,
-//! which can be then combined in tuples to accommodate types with multiple (or 
+//! which can be then combined in tuples to accommodate types with multiple (or
 //! zero) lifetime parameters. This type plays several key roles in the safety
 //! and flexibility of this crate's functionality, as will be discussed below.
 //!
-//! Implementing this trait for a type, either manually or by using the included 
-//! [derive macro][macro@Transient], is the key ingredient to utilizing the 
-//! functionality of this crate and is discussed in-depth in 
+//! Implementing this trait for a type, either manually or by using the included
+//! [derive macro][macro@Transient], is the key ingredient to utilizing the
+//! functionality of this crate and is discussed in-depth in
 //! [its documentation][Transient].
-//! 
+//!
 //! ## The `Transience` trait
 //! In common language, **transience** is a noun that can be defined as
 //! [*the quality or state of being transient*]. The `transient` crate adopts this
 //! term throughout its code and documentation to describe the relationship that a
-//! data structure has with the 0 or more lifetimes parameters it depends on, as 
-//! codified by the [`Transience`] trait. More specifically, this therm refers the 
+//! data structure has with the 0 or more lifetimes parameters it depends on, as
+//! codified by the [`Transience`] trait. More specifically, this therm refers the
 //! [variance] of a type with respect to each of its generic lifetime parameters,
-//! which is a fairly niche topic in everyday Rust programming by plays a major 
+//! which is a fairly niche topic in everyday Rust programming by plays a major
 //! role in the implementation of this crate.
 //!
 //! ### Transience bounds and transitions
@@ -200,9 +200,9 @@
 //! with a `Transience` of `Co<'long>` can be erased to `dyn Any<_>` with any
 //! compatible transience such as `Co<'long>`, `Co<'short>`, `Inv<'long>`, and
 //! `Inv<'short>`.
-//! 
+//!
 //! #### Mixing _covariant_ and _contravariant_ types
-//! As a result of the flexibility discussed above, the following example of 
+//! As a result of the flexibility discussed above, the following example of
 //! storing covariant and contravariant types in the same `Vec` is possible:
 //! ```
 //! use transient::*;
@@ -232,21 +232,21 @@
 //! assert!(erased_vec[0].downcast_ref::<CoStruct>().is_some());
 //! assert!(erased_vec[1].downcast_ref::<ContraStruct>().is_some());
 //! ```
-//! Note however, that this technique is not _always_ possible; if you have a 
-//! `CoStruct<'short>` and `ContraStruct<'long>`, there would be no common 
-//! `Transience` for them to erase to; the first _cannot_ be lengthened to the 
-//! `'long` lifetime due to its covariance, and the second _cannot_ be shortened 
-//! to `'short` due to its contravariance. 
+//! Note however, that this technique is not _always_ possible; if you have a
+//! `CoStruct<'short>` and `ContraStruct<'long>`, there would be no common
+//! `Transience` for them to erase to; the first _cannot_ be lengthened to the
+//! `'long` lifetime due to its covariance, and the second _cannot_ be shortened
+//! to `'short` due to its contravariance.
 //!
 //! #### Mixing types with different numbers of lifetime parameters
-//! Type with more than one lifetime parameter can use a tuple containing a 
-//! variance item for each lifetime as their `Transience`; this is discussed 
-//! in-depth in the documentation for the [`Transience`] trait. Consider the 
+//! Type with more than one lifetime parameter can use a tuple containing a
+//! variance item for each lifetime as their `Transience`; this is discussed
+//! in-depth in the documentation for the [`Transience`] trait. Consider the
 //! following example defining two types, the first with a single lifetime
-//! and the second with two. We will choose _invariance_ for all lifetime 
-//! parameters for simplicity, but when it comes to usage, a similar 
+//! and the second with two. We will choose _invariance_ for all lifetime
+//! parameters for simplicity, but when it comes to usage, a similar
 //! situation to the "mixed co- and contra-variance " example above arises;
-//! if we want to use the types together, we need to find a way to erase 
+//! if we want to use the types together, we need to find a way to erase
 //! both types to a common `dyn Any<_>` trait object:
 //! ```
 //! use transient::*;
@@ -269,28 +269,28 @@
 //! let one = Box::new(OneLifetime(&value1));
 //! // The "natural" choice would be erasing to `dyn Any<(Inv, Inv)>`
 //! let two = Box::new(TwoLifetimes(&value1, &value2));
-//! // The trait objects would not be compatible, but `one` can actually erase 
-//! // to `dyn Any<(Inv, Inv)>` as well, since adding additional components is 
-//! // allowed; so let's do that: 
+//! // The trait objects would not be compatible, but `one` can actually erase
+//! // to `dyn Any<(Inv, Inv)>` as well, since adding additional components is
+//! // allowed; so let's do that:
 //! let erased_vec: Vec<Box<dyn Any<(Inv, Inv)>>> = vec![one, two];
 //! assert!(erased_vec[0].downcast_ref::<OneLifetime>().is_some());
 //! assert!(erased_vec[1].downcast_ref::<TwoLifetimes>().is_some());
 //! ```
-//! 
-//! In this example, we actually could have taken the opposite approach instead 
+//!
+//! In this example, we actually could have taken the opposite approach instead
 //! by coercing the types to `dyn Any<Inv<'a>>`, which would implicitly force `'a`
-//! and `'b` to be equal. In this case that would work since 'a and 'b are indeed 
+//! and `'b` to be equal. In this case that would work since 'a and 'b are indeed
 //! equal:
 //! ```
 //! # use transient::*;
 //! # struct OneLifetime<'a>(&'a i32);  
 //! # unsafe impl<'a> Transient for OneLifetime<'a> {
-//! #     type Static = OneLifetime<'static>; 
+//! #     type Static = OneLifetime<'static>;
 //! #     type Transience = Inv<'a>;
 //! # }
 //! # struct TwoLifetimes<'a, 'b>(&'a i32, &'b i32);
 //! # unsafe impl<'a, 'b> Transient for TwoLifetimes<'a, 'b> {
-//! #     type Static = TwoLifetimes<'static, 'static>; 
+//! #     type Static = TwoLifetimes<'static, 'static>;
 //! #     type Transience = (Inv<'a>, Inv<'b>);
 //! # }
 //! let (value1, value2) = (5, 7);
@@ -303,7 +303,7 @@
 //! ```
 //! However if `'a `was `'short` and `'b` was `'long` then the invariance would
 //! prevent them from being unified.
-//! 
+//!
 //! [`TypeId`]: TypeId
 //! [`transient::Any`]: Any
 //! [`Transient`]: tr::Transient
@@ -328,9 +328,9 @@ pub use crate::any::{Any, TypeId};
 pub use crate::transient::Transient;
 
 #[doc(inline)]
-pub use transience::{Transience, Timeless, Co, Contra, Inv};
+pub use transience::{Co, Contra, Inv, Timeless, Transience};
 
-pub use transience::{CanTranscendTo, CanRecoverFrom};
+pub use transience::{CanRecoverFrom, CanTranscendTo};
 
 pub use crate::any::{Downcast, Transcend};
 
