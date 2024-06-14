@@ -1,12 +1,12 @@
 //! Tests the behavior when used on structs with one type parameter
-use transient::{Transient, AnyOps};
+use transient::{Transient, Downcast};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct S<'a, T> {
     value: &'a T,
 }
-type SS<'a> = S<'a, String>;
 
+type SS<'a> = S<'a, String>;
 
 fn main() {
     let string = "qwer".to_string();

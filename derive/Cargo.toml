@@ -12,12 +12,13 @@ doctest = true
 name = "tests"
 path = "tests/test_derive.rs"
 
-[dev-dependencies]
-trybuild = { version = "1.0.96", features = ["diff"] }
-macrotest = "1.0.12"
-transient = { path = ".." }
-
 [dependencies]
 proc-macro2 = "1.*"
 quote = "1.*"
 syn = { version = "2.*", features = ["full"] }
+thiserror = "1.*"
+
+[dev-dependencies]
+trybuild = { version = "1.0.96", features = ["diff"] }
+macrotest = "1.0.12"
+transient = { path = ".." }

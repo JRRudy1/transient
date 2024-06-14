@@ -1,12 +1,12 @@
 //! Tests the behavior when used on structs without a lifetime parameter
-use transient::{Transient, AnyOps};
+use transient::{Transient, Downcast};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct S<T> {
     value: T,
 }
-type SS = S<String>;
 
+type SS = S<String>;
 
 fn main() {
     let mut original = S{value: "qwer".to_string()};

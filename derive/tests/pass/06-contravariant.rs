@@ -1,6 +1,5 @@
 //! Tests the behavior when used on structs with no type parameters
-use transient::{Transient, Any, AnyOps, Contra, Inv};
-
+use transient::{Transient, Any, Downcast, Contra, Inv};
 
 #[derive(Debug, Transient)]
 struct FuncWrap<'a> {

@@ -1,16 +1,16 @@
 //! Defines the [`Transient`][crate::Transient] derive macro that implements the
-//! [`Transient`][transient::tr::Transient] trait for a struct with at most 1 
+//! [`Transient`][transient::tr::Transient] trait for a struct with at most 1
 //! lifetime parameter.
-
 use std::fmt;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use syn::{
-    parse_macro_input, parse_quote, Lifetime, DeriveInput, Result, Error, 
-    Generics, TypeGenerics, WhereClause, GenericParam, TypeParamBound, 
-    Path, Attribute, Ident, Data, Fields, spanned::Spanned, 
+    parse_macro_input, parse_quote, Lifetime, DeriveInput, 
+    Generics, TypeGenerics, WhereClause, GenericParam, TypeParamBound,
+    Attribute, Ident, Data, Fields, spanned::Spanned
 };
+use syn::{Error as SynError, Result as SynResult};
 
 
 /// Derive macro that implements the  [`Transient`] trait for a struct with
@@ -26,19 +26,19 @@ use syn::{
 ///
 /// # Customization
 /// By default, the [variance] of a deriving struct is assumed to be _invariant_
-/// with respect to its lifetime parameter (if it has one), since this is the 
-/// only type of variance that can be safely used for _all_ types without 
+/// with respect to its lifetime parameter (if it has one), since this is the
+/// only type of variance that can be safely used for _all_ types without
 /// analyzing the behavior of its fields (which this macro does not attempt to
-/// do). When the added flexibility of _covariance_ or _contravariance_ is 
-/// needed, the "variance(...)" helper attribute can be used to `unsafe`-ly 
-/// override this default if you are confident that the chosen variance is 
-/// appropriate for the type; however, you should first review the [safety docs] 
-/// for the `Transient` trait (particularly related to its `Transience` associated 
+/// do). When the added flexibility of _covariance_ or _contravariance_ is
+/// needed, the "variance(...)" helper attribute can be used to `unsafe`-ly
+/// override this default if you are confident that the chosen variance is
+/// appropriate for the type; however, you should first review the [safety docs]
+/// for the `Transient` trait (particularly related to its `Transience` associated
 /// type to ensure that its invariants are upheld.
-/// 
-/// To set the variance for your type, annotate one of its fields (preferably 
-/// either the _first_ field or the field with the lifetime, but any will do) 
-/// with the `#[variance(...)]` attribute, substituting the ellipsis for one 
+///
+/// To set the variance for your type, annotate one of its fields (preferably
+/// either the _first_ field or the field with the lifetime, but any will do)
+/// with the `#[variance(...)]` attribute, substituting the ellipsis for one
 /// of the following keywords:
 ///
 /// |  Keyword | Alias | Description |
@@ -51,8 +51,8 @@ use syn::{
 /// - Requesting any variance for a type with no lifetime parameters
 /// - Requesting co- or contra-variance without the 'unsafe_' prefix
 /// - Providing more than one "variance" attribute with conflicting values
-/// 
-/// 
+///
+///
 /// # Examples
 /// Invocation with a type parameter and a lifetime parameter:
 /// ```no_run
@@ -71,7 +71,7 @@ use syn::{
 ///     type Transience = transient::Inv<'a>;
 /// }
 /// ```
-/// 
+///
 /// Invocation with a single lifetime and an attribute declaring _covariance_:
 /// ```no_run
 /// use transient::Transient;
@@ -91,9 +91,9 @@ use syn::{
 ///     type Transience = transient::Co<'a>;
 /// }
 /// ```
-/// 
+///
 /// [`Transient`]: ../transient/trait.Transient.html
-/// [safety docs]: ../transient/trait.Transient.html#safety
+/// [safety docs]: ../transient/trait.Transient.html#Safety
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[proc_macro_derive(Transient, attributes(variance))]
 pub fn derive_transient(input: TokenStream) -> TokenStream {
@@ -103,18 +103,18 @@ pub fn derive_transient(input: TokenStream) -> TokenStream {
     TokenStream::from(tokens)
 }
 
-fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
+fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
     let span = input.span();
     let name = &input.ident;
 
     let params = process_generics(input.generics)?;
     let variance =  parse_struct(&input.data, params.is_static(), span)?;
-    
+
     let impl_generics = params.impl_generics();
     let (ty_generics, where_clause) = params.split_for_impl();
     let static_ty_generics = params.static_type_generics();
     let transience_generics = params.transience_generics();
-    
+
     let tokens = quote!(
         unsafe impl #impl_generics ::transient::Transient for #name #ty_generics
         #where_clause {
@@ -125,13 +125,13 @@ fn generate_impl(input: DeriveInput) -> Result<TokenStream2> {
     Ok(tokens)
 }
 
-const VALID_VARIANCES: [&'static str; 6] = [
+const VALID_VARIANCES: [&str; 6] = [
     "inv", "invariant",
     "unsafe_co", "unsafe_covariant",
     "unsafe_contra", "unsafe_contravariant",
 ];
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum VarianceKind {
     Covariant,
     Contravariant,
@@ -146,28 +146,19 @@ impl VarianceKind {
     fn unspanned(self) -> Variance {
         Variance(self, None)
     }
-    
-    fn as_path(&self) -> Path {
-        match self {
-            VarianceKind::Invariant => parse_quote!(::transient::Inv),
-            VarianceKind::Covariant => parse_quote!(::transient::Co),
-            VarianceKind::Contravariant => parse_quote!(::transient::Contra),
-            VarianceKind::Static => parse_quote!(::transient::Timeless),
-        }
-    }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Variance(VarianceKind, Option<Span>);
 
-impl Variance {    
+impl Variance {
     fn span(&self) -> Span {
        match self.1.as_ref() {
-           Some(span) => span.clone(),
+           Some(span) => *span,
            None => Spanned::span(self)
-       } 
+       }
     }
-    
+
     fn from_ident(id: &Ident) -> Result<Self> {
         let mut string = id.to_string();
         string.make_ascii_lowercase();
@@ -175,23 +166,30 @@ impl Variance {
             "inv" | "invariant" => Ok(VarianceKind::Invariant),
             "unsafe_co" | "unsafe_covariant" => Ok(VarianceKind::Covariant),
             "unsafe_contra" | "unsafe_contravariant" => Ok(VarianceKind::Contravariant),
-            "co" | "covariant" | "contra" | "contravariant" => { 
-                Err(unsafe_variance_err(&string, id.span())) 
+            "co" | "covariant" | "contra" | "contravariant" => {
+                Err(Error::UnsafeVariance { name: string, span: id.span() })
             },
-            _ => Err(unexpected_variance_err(&string, id.span())),
+            _ => Err(Error::UnexpectedVariance { 
+                arg: string, span: id.span(), options: &VALID_VARIANCES
+            }),
         }.map(|s| s.spanned(id.span()))
     }
 }
 
 impl ToTokens for Variance {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.0.as_path().to_tokens(tokens);
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        match &self.0 {
+            VarianceKind::Static => quote!(::transient::Timeless),
+            VarianceKind::Invariant => quote!(::transient::Inv),
+            VarianceKind::Covariant => quote!(::transient::Co),
+            VarianceKind::Contravariant => quote!(::transient::Contra),
+        }.to_tokens(stream);
     }
 }
 
 impl fmt::Display for Variance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self.0 {            
+        let s = match self.0 {
             VarianceKind::Invariant => "invariant",
             VarianceKind::Covariant => "covariant",
             VarianceKind::Contravariant => "contravariant",
@@ -203,7 +201,7 @@ impl fmt::Display for Variance {
 
 fn parse_struct(data: &Data, is_static: bool, span: Span) -> Result<Variance> {
     let Data::Struct(data) = data else {
-        return Err(not_a_struct_err(span))
+        return Err(Error::NotAStruct(span))
     };
     let fields = match &data.fields {
         Fields::Named(fields) => &fields.named,
@@ -216,26 +214,25 @@ fn parse_struct(data: &Data, is_static: bool, span: Span) -> Result<Variance> {
     }
     match variance {
         Some(variance) if !is_static => Ok(variance),
-        Some(variance) => Err(static_type_with_variance(variance.span())),
+        Some(variance) => Err(Error::StaticTypeWithVariance(variance.span())),
         None if is_static => Ok(VarianceKind::Static.unspanned()),
         None => Ok(VarianceKind::Invariant.unspanned()),
     }
 }
 
 fn search_for_variance(
-    attrs: &Vec<Attribute>, 
+    attrs: &[Attribute],
     variance: &mut Option<Variance>
 ) -> Result<()> {
     for attr in attrs.iter() {
         if attr.path().is_ident("variance") {
             attr.parse_nested_meta(|meta| {
-                let ident = meta.path.get_ident().ok_or_else(|| 
-                    Error::new(meta.path.span(), "Expected identifier!")
-                )?;
+                let ident = meta.path.get_ident()
+                    .ok_or_else(|| Error::ExpectedIdent(meta.path.span()))?;
                 match variance.replace(Variance::from_ident(ident)?) {
                     Some(old) => {
-                        let new = variance.as_ref().unwrap();
-                        Err(duplicate_variance_err(&old, new))
+                        let new = variance.as_ref().unwrap().clone();
+                        Err(Error::DuplicateVariance{old, new}.into())
                     },
                     None => Ok(())
                 }
@@ -274,7 +271,7 @@ impl Params {
     fn empty() -> Self {
         Params::new(None, no_generics(), no_generics(), vec![])
     }
-    
+
     fn is_static(&self) -> bool {
         self.lifetime.is_none()
     }
@@ -302,7 +299,7 @@ impl Params {
 
 fn process_param(param: &mut GenericParam) -> Result<()> {
     match param {
-        GenericParam::Lifetime(lt) => Err(too_many_lifetimes_err(lt.span())),
+        GenericParam::Lifetime(lt) => Err(Error::TooManyLifetimes(lt.span())),
         GenericParam::Type(ty) => {
             ty.bounds.push(static_type_bound());
             Ok(())
@@ -352,37 +349,43 @@ fn process_generics(generics: Generics) -> Result<Params> {
 
 // === ERRORS === //
 
-fn not_a_struct_err(span: Span) -> Error {
-    Error::new(span, "Only `struct`'s are supported!")
+type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    Syn(#[from] SynError),
+    #[error("Only `struct`'s are supported!")]
+    NotAStruct(Span),
+    #[error("Expected an identifier!")]
+    ExpectedIdent(Span),
+    #[error("At most one lifetime parameter is allowed!")]
+    TooManyLifetimes(Span),
+    #[error("A variance cannot be requested for a struct without \na lifetime parameter!\n ")]
+    StaticTypeWithVariance(Span),
+    #[error("Duplicate variance specification! '{old}' replaced by '{new}'\n ")]
+    DuplicateVariance { old: Variance, new: Variance },
+    #[error("Unexpected variance argument '{arg}'! The valid options are: \n{options:?}\n ")]
+    UnexpectedVariance { arg: String, options: &'static [&'static str], span: Span },
+    #[error("Setting the variance to '{name}' is `unsafe`! Prefix the argument with \n\
+        'unsafe_' ('#[variance(unsafe_{name})]') after reviewing the safety docs \n\
+        for the `transient::Transient` trait.\n ")]
+    UnsafeVariance { name: String, span: Span },
 }
 
-fn too_many_lifetimes_err(span: Span) -> Error {
-    Error::new(span, "At most one lifetime parameter is allowed!")
-}
-
-fn static_type_with_variance(span: Span) -> Error {
-    Error::new(span, 
-        "A variance cannot be requested for a struct without \n\
-        a lifetime parameter!\n ")
-}
-
-fn duplicate_variance_err(old: &Variance, new: &Variance) -> Error {
-    Error::new(new.span(),
-        format!("Duplicate variance specification! '{old}' replaced by '{new}'\n "))
-}
-
-fn unexpected_variance_err(variance: &str, span: Span) -> Error {
-    let msg = format!(
-        "Unexpected variance argument '{}'! The valid options are: \n{:?}\n ", 
-        variance, VALID_VARIANCES
-    );
-    Error::new(span, msg)
-}
-
-fn unsafe_variance_err(variance: &str, span: Span) -> Error {
-    let msg = format!(
-        "Setting the variance to '{variance}' is `unsafe`! Prefix the argument with \n\
-        'unsafe_' ('#[variance(unsafe_{variance})]') after reviewing the safety docs \n\
-        for the `transient::Transient` trait.\n ");
-    Error::new(span, msg)
+impl From<Error> for SynError {
+    fn from(value: Error) -> Self {
+        let msg = value.to_string();
+        let span = match value {
+            Error::Syn(err) => err.span(),
+            Error::NotAStruct(span) => span,
+            Error::ExpectedIdent(span) => span,
+            Error::TooManyLifetimes(span) => span,
+            Error::StaticTypeWithVariance(span) => span,
+            Error::DuplicateVariance { new, .. } => new.span(),
+            Error::UnexpectedVariance { span, .. } => span,
+            Error::UnsafeVariance { span, .. } => span
+        };
+        SynError::new(span, msg)
+    }
 }

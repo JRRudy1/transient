@@ -1,13 +1,13 @@
 //! Tests the behavior when used on structs with two type parameters
-use transient::{Transient, AnyOps};
+use transient::{Transient, Downcast};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct S<'a, T1, T2> {
     borrowed: &'a T1,
     owned: T2,
 }
-type SS<'a> = S<'a, String, usize>;
 
+type SS<'a> = S<'a, String, usize>;
 
 fn main() {
     let (string, number) = ("qwer".to_string(), 5_usize);

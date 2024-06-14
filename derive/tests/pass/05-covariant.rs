@@ -1,5 +1,5 @@
 //! Tests the behavior when used on structs with no type parameters
-use transient::{Transient, Any, AnyOps, Co, Inv};
+use transient::{Transient, Any, Downcast, Transcend, Co, Inv};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct SS<'a> {
@@ -12,7 +12,6 @@ struct _SS<'a> {
     #[variance(unsafe_co)]
     value: &'a String,
 }
-
 
 fn main() {
     let string = "qwer".to_string();
