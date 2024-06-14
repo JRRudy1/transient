@@ -10,7 +10,7 @@ struct FuncWrap<'a> {
 
 #[derive(Debug, Transient)]
 struct _FuncWrap<'a> {
-    #[variance(_unsafe_contra)]
+    #[variance(unsafe_contra)]
     func: fn(&'a str) -> &'static str,
 }
 
