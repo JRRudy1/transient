@@ -1,8 +1,15 @@
 [package]
-name = "transient_derive"
-version = "0.0.1"
+name = "transient-erive"
+version = "0.1.0"
+description = "Proc macro from deriving the `transient::Transient` trait"
+authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
+keywords = ["any", "static", "downcast", "typeid"]
+homepage = "https://github.com/JRRudy1/transient"
+repository = "https://github.com/JRRudy1/transient"
+documentation = "https://docs.rs/transient"
+license = "MIT or Apache-2.0"
+exclude = ["/tests/fail", "/tests/expand"]
 edition = "2021"
-autotests = false
 
 [lib]
 proc-macro = true
@@ -13,10 +20,10 @@ name = "tests"
 path = "tests/test_derive.rs"
 
 [dependencies]
-proc-macro2 = "1.*"
-quote = "1.*"
-syn = { version = "2.*", features = ["full"] }
-thiserror = "1.*"
+proc-macro2 = { version = "1", default-features = false }
+quote = "1"
+syn = { version = "2", features = ["full"] }
+thiserror = "1"
 
 [dev-dependencies]
 trybuild = { version = "1.0.96", features = ["diff"] }

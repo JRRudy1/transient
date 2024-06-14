@@ -1,15 +1,17 @@
 [package]
 name = "transient"
-version = "0.0.1"
-authors = ["Joshua Rudolph <jrudolph093@gmail.com>"]
-license = "MIT"
+version = "0.1.0"
+description = "Reimplementation of `std::any::Any` with support for non-`'static` types"
+authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
 readme = "README.md"
+keywords = ["any", "static", "downcast", "typeid"]
+homepage = "https://github.com/JRRudy1/transient"
+repository = "https://github.com/JRRudy1/transient"
+documentation = "https://docs.rs/transient"
+license = "MIT or Apache-2.0"
+exclude = ["/.gitignore", "/tests/fail"]
 edition = "2021"
-
-# repository = "https://github.com/rust-lang/..."
-# documentation = "https://docs.rs/..."
-# homepage = "https://github.com/rust-lang/..."
-# description = """..."""
+rust-version = "1.38"
 
 [lib]
 doctest = true
@@ -18,7 +20,7 @@ doctest = true
 members = ["derive"]
 
 [dependencies]
-transient_derive = { path = "derive", optional = true }
+transient-derive = { path = "derive", optional = true }
 ndarray = { version = "*", optional = true }
 numpy = { version = "*", optional = true }
 pyo3 = { version = ">0.21.0", optional = true }
@@ -28,7 +30,29 @@ trybuild = { version = "1.0.49", features = ["diff"] }
 
 [features]
 default = ["derive"]
-derive = ["transient_derive"]
+
+# Provides a `derive` macro for implementing the `Transient` trait
+derive = ["transient-derive"]
+
+# Provides `Transient` implementations for `ndarray` types
 ndarray = ["dep:ndarray"]
+
+# Provides `Transient` implementations for `pyo3` types
 pyo3 = ["dep:pyo3"]
+
+# Provides `Transient` implementations for `numpy` types
 numpy = ["dep:numpy", "ndarray", "pyo3"]
+
+[workspace.lints.clippy]
+let_unit_value = "warn"
+manual_assert = "warn"
+unnecessary_wraps = "warn"
+
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "warn"
+invalid_doc_attributes = "warn"
+unused_lifetimes = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "warn"
+bare_urls = "warn"
