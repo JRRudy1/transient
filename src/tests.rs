@@ -13,7 +13,6 @@ mod double {
         type Static = S<'static, T1, T2>;
         type Transience = Inv<'a>;
     }
-
 }
 
 /// Tests for a simple struct with no generic parameters.
@@ -34,7 +33,6 @@ mod basic {
         let value = "qwer".to_string();
         let original: S<'_> = S{value: &value};
         let erased: Box<dyn Any<Co<'_>> + '_> = Box::new(original.clone());
-        // assert_eq!(erased.type_id(), S::static_type_id());
 
         // `S::Transience` is `Co<'a>` se we can erase to `Any<Co<'a>>`, but
         // instead we downgraded to `Any<Inv<'a>>`. Now can't restore it b/c
@@ -49,7 +47,7 @@ mod basic {
         let value = "qwer".to_string();
         let original = S{value: &value};
         let erased: &dyn Any<Co> = &original;
-        assert_eq!(erased.type_id(), TypeId::of::<S>());
+        assert_eq!(erased.type_id(), any::TypeId::of::<S>());
         let restored = erased.downcast_ref::<S>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -58,7 +56,7 @@ mod basic {
         let value = "qwer".to_string();
         let mut original = S{value: &value};
         let erased: &mut dyn Any<Co> = &mut original;
-        assert_eq!(erased.type_id(), TypeId::of::<S>());
+        assert_eq!(erased.type_id(), any::TypeId::of::<S>());
         let restored = erased.downcast_mut::<S>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -111,90 +109,6 @@ mod generics {
     }
 }
 
-/*
-/// Tests for a struct with more than one lifetime parameter.
-#[allow(unused)]
-mod multi_lifetime {
-    use std::any::Any;
-    use crate::{transient::Transient, Transience, Inv, Covariant};
-
-    pub type InvInv<'a, 'b> = (Inv<'a>, Inv<'b>);
-    pub type CoCo<'a, 'b> = (Covariant<'a>, Covariant<'b>);
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct S<'s, 'l: 's> {
-        short: &'s str,
-        long: &'l str,
-    }
-    unsafe impl<'s, 'l: 's> Transient for S<'s, 'l> {
-        type Static = S<'static, 'static>;
-        type Transience = InvInv<'s, 'l>;
-    }
-    impl<'s, 'l: 's> S<'s, 'l> {
-
-        fn restore_(erased: Box<dyn Any>, tr: InvInv<'s, 'l>) -> Result<Self, Box<dyn Any>>{
-            let x: Box<S<'static, 'static>> = erased.downcast()?;
-            let y: S<'static, 'static> = *x;
-            let z: S<'s, 'l> = unsafe { std::mem::transmute(y) };
-            Ok(z)
-        }
-    }
-
-    fn f0<'b, 's, 'l: 's, V: Transience>(short: &'b Erased<V>, long: &'l str) -> &'l str {
-        long
-    }
-    fn f<'s, 'l: 's>(short: &mut &'s str, long: &mut &'l str) -> &'l str {
-
-        let original: S<'s, 'l> = S {short: *short, long: *long}; // impl `Transient<'s>`
-        let erased: Erased<InvInv<'s, 'l>> = Erased::new(original);
-
-        let _: &'l str = f0(&erased, long);
-        // `S<'s, 'static>: Transient<'s>`
-        let restored: S<'s, 'l> = erased.restore().unwrap();
-
-        let short2: &'s str = restored.short;
-        // `long2` isn't actually static! It only lives for `'l`
-        let long2: &'l str = restored.long;
-
-        // assert_eq!(*long, restored.long);
-        long2
-    }
-    /*
-    #[test]
-    pub(super) fn test_ref() {
-        let fake_static: &'_ str;
-        {
-            let mut long = "long".to_string();
-            long.push_str("qqq");
-            let mut long_ref: &str = &long;
-            {
-                let mut short = "short".to_string();
-                short.push_str("qqq");
-                let mut short_ref: &str = &short;
-
-                fake_static = f(&mut short_ref, &mut long_ref);
-                let _ = short;
-                drop(short);
-            }
-            assert_eq!(long_ref, "long");
-            drop(long);
-        }
-
-        let x = Box::new(5);
-        let s = "string".to_string();
-
-        assert_eq!(fake_static, "long");
-        assert_eq!(&s, "string");
-
-        let (short, long) = ("short".to_string(), "long".to_string());
-        let original = S {short: &short, long: &long};
-        let erased = original.erase_ref();
-        assert_eq!(erased.type_id(), S::static_type_id());
-        let restored = erased.restore::<S>().unwrap();
-        assert_eq!(restored, &original);
-    }*/
-}
-*/ // todo!
 
 #[test]
 fn variance_tests() {
@@ -245,12 +159,11 @@ mod mixed_lifetimes {
             string: static_str,
         };
         let erased_short: Box<dyn Any<ContraCo>> = Box::new(short);
-        // let erased_short = short.erase_ref();
-        assert_eq!(erased_short.type_id(), TypeId::of::<M>());
+        assert_eq!(erased_short.type_id(), any::TypeId::of::<M>());
         // the first (contra) param must lengthen from `'_` to `'static`
         requires_static(&*erased_short);
 
         let erased_long: &dyn Any<ContraCo> = &long;
-        assert_eq!(erased_long.type_id(), TypeId::of::<M>());
+        assert_eq!(erased_long.type_id(), any::TypeId::of::<M>());
     }
 }
