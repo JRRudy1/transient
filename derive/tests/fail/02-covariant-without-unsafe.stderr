@@ -1,0 +1,8 @@
+error: Setting the variance to 'co' is `unsafe`! Prefix the argument with
+       'unsafe_' ('#[variance(unsafe_co)]') after reviewing the safety docs
+       for the `transient::Transient` trait.
+
+ --> tests/fail/02-covariant-without-unsafe.rs:7:16
+  |
+7 |     #[variance(co)]
+  |                ^^

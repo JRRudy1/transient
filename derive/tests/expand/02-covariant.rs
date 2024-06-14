@@ -2,32 +2,32 @@
 use transient_derive::Transient;
 
 #[derive(Transient)] // future fail
-#[r#unsafe(covariant)]
 struct NoGenerics {
+    #[variance(unsafe_covariant)]
     value1: String,
 }
 
 #[derive(Transient)]
-#[r#unsafe(covariant)]
 struct LifetimeOnly<'a> {
+    #[variance(unsafe_covariant)]
     value1: &'a str,
 }
 
 #[derive(Transient)] // future fail
-#[r#unsafe(covariant)]
 struct TypeOnly<T> {
+    #[variance(unsafe_covariant)]
     value: T,
 }
 
 #[derive(Transient)]
-#[r#unsafe(covariant)]
 struct TypeAndLifetime<'a, T> {
+    #[variance(unsafe_covariant)]
     value: &'a T,
 }
 
-#[derive(Transient)] // future fail
-#[r#unsafe(covariant)]
+#[derive(Transient)]
 struct TypesAndLifetime<'a, T1, T2> {
+    #[variance(unsafe_covariant)]
     value1: &'a T1,
     value2: T2,
 }

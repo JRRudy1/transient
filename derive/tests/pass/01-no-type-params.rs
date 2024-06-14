@@ -1,28 +1,31 @@
-
-use transient::{Transient};
+//! Tests the behavior when used on structs with no type parameters
+use transient::{Transient, AnyOps};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct SS<'a> {
     value: &'a String,
 }
 
+
 fn main() {
     let string = "qwer".to_string();
     let mut original = SS{value: &string};
+    { // owned
+        let erased = Box::new(original.clone()).erase();
+        assert!(erased.is::<SS>());
+        let restored = erased.downcast::<SS>().unwrap();
+        assert_eq!(restored.as_ref(), &original);
+    }
+    { // shared ref
+        let erased = original.erase_ref();
+        assert!(erased.is::<SS>());
+        let restored = erased.downcast_ref::<SS>().unwrap();
+        assert_eq!(restored, &original);
+    }
     { // mut ref
-    let erased = original.erase_mut();
-    assert_eq!(erased.type_id(), SS::static_type_id());
-    let restored = erased.restore::<SS>().unwrap();
-    assert_eq!(restored.value, &string);
-    } { // shared ref
-    let erased = original.erase_ref();
-    assert_eq!(erased.type_id(), SS::static_type_id());
-    let restored = erased.restore::<SS>().unwrap();
-    assert_eq!(restored, &original);
-    } { // owned
-    let erased = original.clone().erase();
-    assert_eq!(erased.type_id(), SS::static_type_id());
-    let restored = erased.restore::<SS>().unwrap();
-    assert_eq!(restored, original);
+        let erased = original.erase_mut();
+        assert!(erased.is::<SS>());
+        let restored = erased.downcast_mut::<SS>().unwrap();
+        assert_eq!(restored.value, &string);
     }
 }

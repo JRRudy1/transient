@@ -1,12 +1,11 @@
-//! Ensure fails when the `covariant` attribute is used without `r#unsafe`
+//! Ensure fails when an unrecognized variance is requested
 use transient::Transient;
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
-#[covariant]
-struct S<'a, 'b, T> {
+struct S<'a, T> {
+    #[variance(invarient)]
     value1: &'a T,
-    value2: &'b T,
 }
 
 fn main() {

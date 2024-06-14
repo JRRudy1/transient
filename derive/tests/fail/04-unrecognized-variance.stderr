@@ -1,0 +1,7 @@
+error: Unexpected variance argument 'invarient'! The valid options are:
+       ["inv", "invariant", "unsafe_co", "unsafe_covariant", "unsafe_contra", "unsafe_contravariant"]
+
+ --> tests/fail/04-unrecognized-variance.rs:7:16
+  |
+7 |     #[variance(invarient)]
+  |                ^^^^^^^^^
