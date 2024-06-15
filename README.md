@@ -77,7 +77,7 @@ fn main() {
 
 The `Inv` type used above stands for "invariant", which is the most conservative 
 form of a property known as [variance] that describes the behavior of a type 
-with respect to a lifetime parameter. And understanding of variance will let 
+with respect to a lifetime parameter. An understanding of variance will let 
 you utilize the advanced features of this crate, but is not necessary for most 
 purposes since the `Inv` type shown above be safely used for _any_ type with 
 a single lifetime parameter. 
@@ -102,14 +102,14 @@ discussed in-depth throughout the documentation (hint - there are `Co` and
 `Contra` types as well), but the key takeaway is that types make a single 
 `unsafe` but straight-forward decision about their temporal behavior when 
 implementing the `Transient` trait, and then everything else is kept _safe_ 
-using type type system and trait bounds.
+using the type system and trait bounds.
 
 ### Usage: multiple life parameters
 
 The mechanism demonstrated above extends naturally to types with more than one 
 lifetime parameter by instead parameterizing the `dyn Any<_>` with a tuple as 
 shown in the following example; however, the included `derive` macro currently 
-only support types with zero or one lifetime parameters, so we will implement 
+only supports types with zero or one lifetime parameters, so we will implement 
 the `Transient` trait ourselves this time:
 
 ```rust
