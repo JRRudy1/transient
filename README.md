@@ -1,111 +1,152 @@
 transient
 =====
-This crate extends the dynamic typing mechanism provided by the [`std::any::Any`]
-trait to add support for types with non-`'static` lifetimes.
+This crate provides a reimplementation of the `std::any::Any` trait supporting
+types with non-`'static` lifetimes.
 
-# Introduction
+### Documentation
 
-The standard library's `Any` trait is used to emulate dynamic typing within
-Rust, and is extremely useful in cases where implementing a statically typed
-solution would be inconvenient, if not impossible. Examples include storing
-heterogeneous values in a `Vec`, or eliminating generic parameters from a
-type so that it can be used in object-safe trait methods.
+[Module documentation with examples](https://docs.rs/transient).
+The module documentation also includes a comprehensive description of the
+syntax supported.
 
-However, a significant limitation of the `Any` trait is its `'static` lifetime
-bound, which prevents it from being used for types containing any non-`'static`
-references. This restriction eliminates many potential use-cases, and in others
-it can force users to sacrifice performance by cloning data that could otherwise
-be borrowed.
+### Usage
 
-This crate aims to circumvent this limitation through careful use of `unsafe` code
-hidden behind a safe abstraction, so that type-erasure may be applied to transient
-(i.e. non-`'static`) data. This is achieved using the `MakeStatic` and
-`Transient` traits, the `Erased`, `ErasedRef`, and `ErasedMut` wrapper
-structs, and the `Transient` derive macro that helps make the functionality
-in this crate painless to utilize.
+To bring this crate into your repository, either add `transient` to your
+`Cargo.toml`, or run `cargo add transient`.
 
-# Approach
+Using this crate starts by implementing the provided `Transient` trait for a 
+type, which can be derived using the included `derive` or implemented by hand
+by simply defining two associated types. Implementing this trait manually is 
+`unsafe` but straightforward and extensively documented, and once implemented
+it enables this crate's functionality to be used _safely_.
 
-The following steps are meant to illustrate what the crate does behind-the-scenes
-to safely implement its functionality; skip to [the next section](#usage) if you
-don't care and just want to learn about using it.
-
-1. The `MakeStatic<'src>` trait is implemented/derived for a type, which is a
-simple but `unsafe` trait that allows a transient type (or a reference to such)
-with minimum lifetime bound `'src` to be transmuted into a `'static` version of
-the same type. On its own, this operation would be extremely `unsafe`, but the
-following steps will make use of the trait's `'src` lifetime parameter to build
-a safe abstraction.
-
-2. The `'static`-ified type is then *erased* by casting to `dyn Any` (behind
-a box or reference), which is now possible thanks to the falsely-`'static`
-lifetime. However, using this object directly is still dangerous as there is
-no lifetime bounding access to the borrowed data it contains.
-
-3. The erased value (or shared/mutable reference) is then wrapped in an `Erased`
-(or `ErasedRef`/`ErasedMut`) struct, which uses `PhantomData` to bind the
-value to its true lifetime `'src` and ensure that the borrowed data remains valid
-for the lifetime of the wrapper. Furthermore, the API of this wrapper struct is
-designed such that the wrapped value is *not* exposed in any safe public methods,
-and cannot be extracted or referenced directly.
-
-4. Finally, each wrapper provides a `restore<T>` method that can be called to
-extract the value (or reference) in its original form. This method attempts to
-downcast the erased value as the given type `T`, and then restores the original
-lifetime `'src` before returning it to the caller.
-
-# Usage
-After implementing the `MakeStatic` trait for a type (either manually or
-using the `Transient` derive macro]), the primary entry point for utilizing
-the functionality in this crate is provided by the `Transient` trait].
-This trait is implemented automatically by a blanket `impl` for all
-`T: MakeStatic<'src>`, and exposes safe methods for erasing the type of an owned
-value (`erase`), shared reference (`erase_ref`), or mutable reference
-(`erase_mut`). Each of these methods performs the necessary steps to extend
-the value's lifetime, erase its type, and place it in a wrapper that maintains
-safety by binding to the original lifetime and restricting access to the
-unbounded inner value.
-
-When dynamic typing is no longer needed, the wrapper's `restore` method
-(`Erased::restore`, `ErasedRef::restore`, or `ErasedMut::restore`)
-can be called to move out of the wrapper and return the inner value/reference
-with its static type and lifetime bounds restored.
-
-# Examples
-
-The following code block provides a basic example of using this crate to
-utilize `Any`-like dynamic typing for a non-`'static` struct. Explicit type
-annotations will be included for clarity, wherein the anonymous lifetime
-`'_` will be used to represent the `'src` lifetime.
+The following example demonstrates the trivial case of deriving the `Transient` 
+trait for a `'static` type, and then casting it to a `dyn Any` trait object to 
+emulate dynamic typing just as you would using the stdlib's implementation:
 
 ```rust
-use transient::{Transient, Erased};
+use transient::{Transient, Any};
 
-#[derive(Transient, Clone, Debug, PartialEq, Eq)]
-struct S<'a> {
-    value: &'a String,
-}
+#[derive(Transient, Debug, PartialEq)]
+struct MyUsize(usize);
 
 fn main() {
-    // Create a `String` that the `S` struct will borrow:
-    let string = "qwer".to_string();
-    
-    // Create a transient struct that borrows the string:
-    let original: S<'_> = S{value: &string};
-    
-    // Extend lifetime, erase type, and wrap with an `Erased` struct to preserve
-    // and enforce its lifetime bound:
-    let erased: Erased<'_> = original.erase();
-    
-    // We can now do dynamically typed things with it, such as storing it in a
-    // `Vec` with other erased types:
-    let _ = vec![erased, 4.erase(), Box::new(2.0).erase()];
-    
-    // Restore the static type and lifetime of the transient struct:
-    let restored: S<'_> = erased.restore().unwrap();
-    assert_eq!(&restored, &original);
+    let orig = MyUsize(5);
+    // we can erase the non-'static type...
+    let erased: &dyn Any = &orig;
+    assert!(erased.is::<MyUsize>());
+    // and restore it...
+    let restored: &MyUsize = erased.downcast_ref().unwrap();
+    assert_eq!(restored, &orig);
+    // and use it in dynamically-typed shenanigans...
+    let stuff = vec![erased, &five, restored, "bananas"];
+    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
 }
 ```
 
-[`PhantomData`]: https://doc.rust-lang.org/std/marker/struct.PhantomData.html
-[`std::any::Any`]: https://doc.rust-lang.org/std/any/trait.Any.html
+Where it get's interesting is when you have a non-`'static` type containing 
+borrowed data, which would be ineligable for use with the `std::any::Any`
+implementation due to its `'static` bound. The following example will 
+demonstrate using the `transient` crate's implementation to utilize the
+same functionality as for `'static` types by simply parameterizing the 
+`Any` trait by `Inv`, which is a `Transience` implementation that binds 
+the lifetime and variance information that the stdlib would not be able
+to handle:
+
+```rust
+use transient::{Transient, Any, Inv};
+
+#[derive(Transient, Debug, PartialEq)]
+struct MyUsizeRef<'a>(&'a usize);
+
+fn main() {
+    let five = 5;
+    let orig = MyUsizeRef(&five);
+    // we can erase the non-'static type...
+    let erased: &dyn Any<Inv> = &orig;
+    assert!(erased.is::<MyUsizeRef>());
+    // and restore it...
+    let restored: &MyUsizeRef = erased.downcast_ref().unwrap();
+    assert_eq!(restored, &orig);
+    // and use it in dynamically-typed shenanigans...
+    let stuff = vec![erased, &five, restored, "bananas"];
+    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
+}
+```
+
+The `Inv` type used above stands for "invariant", which is the most conservative 
+form of a property known as [_variance_] that describes the behavior of a type 
+with respect to a lifetime parameter. And understanding of variance will let 
+you utilize the advanced features of this crate, but is not necessary for most 
+purposes since the `Inv` type shown above be safely used for _any_ type with 
+a single lifetime parameter. 
+
+In the first example where we cast our type to a naked `dyn Any` without specifying 
+a `Transience` type, the `Any` trait's default type parameter `()` was chosen
+implicitly which causes it to behave like the stdlib's implementation by only 
+accepting `'static` types; trying this with `MyUsizeRef` defined in the second 
+example would have been rejected by the compiler. This hints at the underlying 
+mechanism used to implement this crate, wherein types declare their temporal 
+relationships (i.e. `Transience`) when implementing the `Transient` trait, which 
+then bounds the range of `dyn Any<_>` flavors they are allowed to utilize. 
+Non-`'static` types with a single lifetime `'a` that implement `Transient` using 
+the derive macro are (by default) assigned a `Transience` of `Inv<'a>`, which 
+limits them to being erased to (and restored from) the `dyn Any<Inv<'a>>` trait
+object. By contrast, `'static` types implement the most flexible `Transience` 
+of `()` which allows them to be be cast to any `dyn Any<_>` they want, up to 
+and including the default `dyn Any()`. 
+
+There is a large amount of middle-ground between these two extremes which is 
+discussed in-depth throughout the documentation (hint - there are `Co` and 
+`Contra` types as well), but the key takeaway is that types make a single 
+`unsafe` but straight-forward decision about their temporal behavior when 
+implementing the `Transient` trait, and then everything else is kept _safe_ 
+using type type system and trait bounds.
+
+### Usage: multiple life parameters
+
+The mechanism demonstrated above extends naturally to types with more than one 
+lifetime parameter by instead parameterizing the `dyn Any<_>` with a tuple as 
+shown in the following example; however, the included `derive` macro currently 
+only support types with zero or one lifetime parameters, so we will implement 
+the `Transient` trait ourselves this time:
+
+```rust
+use transient::{Transient, Any, Inv};
+
+#[derive(Debug, PartialEq)]
+struct TwoRefs<'a, 'b>(&'a i32, &'b i32);
+
+unsafe impl<'a, 'b> Transient for TwoRefs<'a, 'b> {
+    // the `Static` type is simply the same as the `Self` type with its 
+    // lifetimes replaced by `'static`
+    type Static = TwoRefs<'static, 'static>;
+    // we use a tuple for the `Transience` that covers both lifetimes, using 
+    // `Inv` for each element since this is always safe
+    type Transience = (Inv<'a>, Inv<'b>);
+}
+
+fn main() {
+    let (value1, value2) = (5, 7);
+    let orig = TwoRefs(&value1, &value2);
+    let erased: &dyn Any<Inv> = &orig;
+    assert!(erased.is::<TwoRefs>());
+    let restored: &TwoRefs = erased.downcast_ref().unwrap();
+    assert_eq!(restored, &orig);
+    let stuff = vec![erased, &five, restored, "bananas"];
+    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
+}
+```
+
+### License
+
+This project is licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   https://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   https://opensource.org/licenses/MIT)
+
+at your option.
+
+[variance]: https://doc.rust-lang.org/nomicon/subtyping.html
