@@ -3,6 +3,8 @@ transient
 This crate provides a reimplementation of the `std::any::Any` trait supporting
 types with non-`'static` lifetimes.
 
+[![Crates.io](https://img.shields.io/crates/v/transient.svg)](https://crates.io/crates/transient)
+
 ### Documentation
 
 [Module documentation with examples](https://docs.rs/transient).
