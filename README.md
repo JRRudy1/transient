@@ -16,8 +16,8 @@ syntax supported.
 To bring this crate into your repository, either add `transient` to your
 `Cargo.toml`, or run `cargo add transient`.
 
-Using this crate starts by implementing the provided `Transient` trait for a 
-type, which can be derived using the included `derive` or implemented by hand
+Using this crate starts by implementing the provided `Transient` trait for a type,
+which can be derived using the included `derive` macro or implemented by hand
 by simply defining two associated types. Implementing this trait manually is 
 `unsafe` but straightforward and extensively documented, and once implemented
 it enables this crate's functionality to be used _safely_.
