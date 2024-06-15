@@ -312,9 +312,6 @@
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
 #![deny(missing_docs, clippy::missing_safety_doc)]
 
-#[cfg(test)]
-pub mod tests;
-
 pub mod any;
 pub mod transience;
 
@@ -342,3 +339,10 @@ pub use transient_derive::Transient;
 pub mod tr {
     pub use super::transient::Transient;
 }
+
+#[cfg(test)]
+pub mod tests;
+
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadMe;

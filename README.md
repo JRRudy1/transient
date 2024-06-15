@@ -25,7 +25,7 @@ trait for a `'static` type, and then casting it to a `dyn Any` trait object to
 emulate dynamic typing just as you would using the stdlib's implementation:
 
 ```rust
-use transient::{Transient, Any};
+use transient::{Transient, Any, Downcast};
 
 #[derive(Transient, Debug, PartialEq)]
 struct MyUsize(usize);
@@ -39,8 +39,9 @@ fn main() {
     let restored: &MyUsize = erased.downcast_ref().unwrap();
     assert_eq!(restored, &orig);
     // and use it in dynamically-typed shenanigans...
-    let stuff = vec![erased, &five, restored, "bananas"];
-    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
+    let bananas = "bananas".to_string();
+    let stuff = vec![erased, &orig.0, restored, &bananas];
+    assert_eq!(stuff[0].downcast_ref::<MyUsize>().unwrap(), &orig);
 }
 ```
 
@@ -54,7 +55,7 @@ the lifetime and variance information that the stdlib would not be able
 to handle:
 
 ```rust
-use transient::{Transient, Any, Inv};
+use transient::{Transient, Any, Inv, Downcast};
 
 #[derive(Transient, Debug, PartialEq)]
 struct MyUsizeRef<'a>(&'a usize);
@@ -69,8 +70,8 @@ fn main() {
     let restored: &MyUsizeRef = erased.downcast_ref().unwrap();
     assert_eq!(restored, &orig);
     // and use it in dynamically-typed shenanigans...
-    let stuff = vec![erased, &five, restored, "bananas"];
-    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
+    let stuff = vec![erased, &five, restored, &"bananas"];
+    assert_eq!(stuff[0].downcast_ref::<MyUsizeRef>().unwrap(), &orig);
 }
 ```
 
@@ -112,7 +113,7 @@ only support types with zero or one lifetime parameters, so we will implement
 the `Transient` trait ourselves this time:
 
 ```rust
-use transient::{Transient, Any, Inv};
+use transient::{Transient, Any, Inv, Downcast};
 
 #[derive(Debug, PartialEq)]
 struct TwoRefs<'a, 'b>(&'a i32, &'b i32);
@@ -127,14 +128,14 @@ unsafe impl<'a, 'b> Transient for TwoRefs<'a, 'b> {
 }
 
 fn main() {
-    let (value1, value2) = (5, 7);
-    let orig = TwoRefs(&value1, &value2);
+    let (five, seven) = (5, 7);
+    let orig = TwoRefs(&five, &seven);
     let erased: &dyn Any<Inv> = &orig;
     assert!(erased.is::<TwoRefs>());
     let restored: &TwoRefs = erased.downcast_ref().unwrap();
     assert_eq!(restored, &orig);
-    let stuff = vec![erased, &five, restored, "bananas"];
-    assert_eq!(stuff[0].downcast_ref().unwrap(), &orig);
+    let stuff = vec![erased, &five, restored, &"bananas"];
+    assert_eq!(stuff[0].downcast_ref::<TwoRefs>().unwrap(), &orig);
 }
 ```
 
