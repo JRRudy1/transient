@@ -7,9 +7,7 @@ types with non-`'static` lifetimes.
 
 ### Documentation
 
-[Module documentation with examples](https://docs.rs/transient).
-The module documentation also includes a comprehensive description of the
-syntax supported.
+[Module documentation with examples](https://docs.rs/transient)
 
 ### Usage
 
