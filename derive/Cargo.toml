@@ -8,7 +8,6 @@ homepage = "https://github.com/JRRudy1/transient"
 repository = "https://github.com/JRRudy1/transient"
 documentation = "https://docs.rs/transient"
 license = "MIT or Apache-2.0"
-exclude = ["/tests/fail", "/tests/expand"]
 edition = "2021"
 
 [lib]
