@@ -222,9 +222,9 @@ pub unsafe trait CanTranscendTo<Other> {}
 /// - `Contra` can be recovered from `Inv` at the same (or longer) lifetime.
 /// - `Timeless` can be recovered from *any* transience.
 /// - The only transience that can be recovered from `Timeless` is itself. This
-/// is only for technical reasons (to avoid duplicate impls), and in practice it
-/// doesn't sacrifice flexibility because the only safe way to obtain `dyn Any<())>`
-/// in the first place is if the original type was `T: Transient<Transience=()>`.
+///   is only for technical reasons (to avoid duplicate impls), and in practice it
+///   doesn't sacrifice flexibility because the only safe way to obtain `dyn Any<())>`
+///   in the first place is if the original type was `T: Transient<Transience=()>`.
 ///
 /// # Safety
 /// This trait must only be implemented for *valid* conversions. Implementing

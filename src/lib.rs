@@ -30,25 +30,25 @@
 //! - Near drop-in replacement for `std::any::Any` when dealing with `'static` types
 //! - Familiar extension beyond `std::any::Any` when dealing with non-`'static` types
 //! - Zero run-time cost above that of a standard `dyn Any` cast, with all added
-//! functionality implemented using the type system
+//!   functionality implemented using the type system
 //! - Safely accounts for the nuances of _subtyping and variance_
 //! - Supports types with any number of generic lifetime parameters with arbitrary
-//! variance combinations
+//!   variance combinations
 //! - Supports types with any number of generic type parameters
 //! - Provides the [`macro@Transient`] `derive` macro to implement the `Transient`
-//! trait for most types
+//!   trait for most types
 //!
 //! # Limitations
 //! - Requires a single `unsafe` trait to be implemented for types wishing to
-//! utilize the crate's functionality; however, this trait is usually trivial
-//! to safely implement, and a `derive` macro is provided for common cases
+//!   utilize the crate's functionality; however, this trait is usually trivial
+//!   to safely implement, and a `derive` macro is provided for common cases
 //! - Only emulates the non-`Send`/`Sync` variant of the stdlib's `Any` trait
-//! for now, but support for `Any + Send` and `Any + Send + Sync` can be added
-//! if requested
+//!   for now, but support for `Any + Send` and `Any + Send + Sync` can be added
+//!   if requested
 //! - Only `Sized` types are supported. Removing this restriction would be
-//! trivial, but makes it awkward to name generic types that require their
-//! parameters to be `T: Sized` since `T::Static: Sized` must be explicitly
-//! stated even when `T: Sized` can be implied
+//!   trivial, but makes it awkward to name generic types that require their
+//!   parameters to be `T: Sized` since `T::Static: Sized` must be explicitly
+//!   stated even when `T: Sized` can be implied
 //!
 //! # Examples
 //!

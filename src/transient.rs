@@ -35,30 +35,30 @@ use crate::transience::Transience;
 /// For a type with a single lifetime parameter `'a`, there are 3 main options
 /// which correspond to the standard [variances] that a type can have:
 /// - [`Inv<'a>`] -- this type declares that the implementing type is _invariant_
-/// with respect to `'a`, which means that the compiler can neither shorten nor
-/// length its lifetime freely. This is the most conservative form of variance,
-/// and can safely be chosen for the `Transience` of any single-lifetime type.
-/// However, this variance is the least flexible when it comes to usage; in a
-/// world were `&'a str` was considered _invariant_ you would not be allowed
-/// to pass a `&'static str` to a function expecting `&'short str`, even though
-/// the former should clearly be more capable than the latter.
+///   with respect to `'a`, which means that the compiler can neither shorten nor
+///   length its lifetime freely. This is the most conservative form of variance,
+///   and can safely be chosen for the `Transience` of any single-lifetime type.
+///   However, this variance is the least flexible when it comes to usage; in a
+///   world were `&'a str` was considered _invariant_ you would not be allowed
+///   to pass a `&'static str` to a function expecting `&'short str`, even though
+///   the former should clearly be more capable than the latter.
 /// - [`Co<'a>`] -- this type declares that the implementing type is _covariant_
-/// with respect to `'a`, which means that the compiler can safely shorten its
-/// lifetime as needed, but cannot lengthen it. _Most_ types exhibit this variance
-/// and can use it for their `Transience` (such as `&'a str` discussed above),
-/// but using it in the few cases where it does _not_ apply could result in
-/// undefined behavior (and so covariance cannot be the default). Notable
-/// exceptions from _covariant_ behavior include the argument of a function
-/// pointer (a type containing an `fn(&'a str)` is _contravariant_ w.r.t. `'a`)
-/// and the pointee of a mutable reference (`&'a mut &'b str` is _invariant_
-/// w.r.t. `'b`, although it is still _covariant_ w.r.t. `'a`).
+///   with respect to `'a`, which means that the compiler can safely shorten its
+///   lifetime as needed, but cannot lengthen it. _Most_ types exhibit this variance
+///   and can use it for their `Transience` (such as `&'a str` discussed above),
+///   but using it in the few cases where it does _not_ apply could result in
+///   undefined behavior (and so covariance cannot be the default). Notable
+///   exceptions from _covariant_ behavior include the argument of a function
+///   pointer (a type containing an `fn(&'a str)` is _contravariant_ w.r.t. `'a`)
+///   and the pointee of a mutable reference (`&'a mut &'b str` is _invariant_
+///   w.r.t. `'b`, although it is still _covariant_ w.r.t. `'a`).
 /// - [`Contra<'a>`] -- this type declares that the implementing type is
-/// _contravariant_ with respect to `'a`, which means that the compiler can
-/// safely _lengthen_ its lifetime as needed, but cannot shorten it. This is
-/// the least common variance so I won't discuss it in depth, but the main
-/// example of contravariance is the relationship between a function and
-/// the lifetime parameters of its arguments (such as `fn(&'a str)` as
-/// mentioned above.
+///   _contravariant_ with respect to `'a`, which means that the compiler can
+///   safely _lengthen_ its lifetime as needed, but cannot shorten it. This is
+///   the least common variance so I won't discuss it in depth, but the main
+///   example of contravariance is the relationship between a function and
+///   the lifetime parameters of its arguments (such as `fn(&'a str)` as
+///   mentioned above.
 ///
 /// As a side note, a 1-tuple containing `Inv`, `Co`, or `Contra` can
 /// also be used for the `Transience` of a single-lifetime type (subject
@@ -220,23 +220,23 @@ use crate::transience::Transience;
 ///
 /// # Safety
 /// - The [`Static`][Self::Static] associated type must be the same type as the
-/// implementing type, but with all lifetime parameters replaced by `'static` and
-/// any non-`'static`-bounded type parameters `T` replaced by `T::Static` (for
-/// which they must be bounded by `Transient`). Specifically, the type must have
-/// the same layout as `Self` so that `std::mem::transmute` and raw pointer casts
-/// pointer casts between them are sound, and the `std::any::TypeId` of the
-/// `Static` type must correctly identify the `Self` type.
+///   implementing type, but with all lifetime parameters replaced by `'static` and
+///   any non-`'static`-bounded type parameters `T` replaced by `T::Static` (for
+///   which they must be bounded by `Transient`). Specifically, the type must have
+///   the same layout as `Self` so that `std::mem::transmute` and raw pointer casts
+///   pointer casts between them are sound, and the `std::any::TypeId` of the
+///   `Static` type must correctly identify the `Self` type.
 /// - The [`Transience`][Self::Transience] associate type must include a component
-/// for each lifetime parameter that accurately (or more conservatively) captures
-/// the `Self` type's variance with respect to it, as detailed in the documentation
-/// for the [`Transience`] trait and demonstrated in the sections above. For a
-/// `'static` type this should be `()`, for a single-lifetime type it should be
-/// [`Inv<'a>`] as a safe default or [`Co<'a>`]/[`Contra<'a>`] if appropriate,
-/// and for a multi-lifetime type this should be `(Inv<'a>, Inv<'b>, ...)` as a
-/// safe default with `Co` and `Contra` optionally substituted where appropriate.
-/// Choosing `Co` or `Contra` for any lifetime parameter without respecting the
-/// rules of [Subtyping and Variance], or excluding any independent lifetime
-/// parameter from the `Transience` is undefined behavior.
+///   for each lifetime parameter that accurately (or more conservatively) captures
+///   the `Self` type's variance with respect to it, as detailed in the documentation
+///   for the [`Transience`] trait and demonstrated in the sections above. For a
+///   `'static` type this should be `()`, for a single-lifetime type it should be
+///   [`Inv<'a>`] as a safe default or [`Co<'a>`]/[`Contra<'a>`] if appropriate,
+///   and for a multi-lifetime type this should be `(Inv<'a>, Inv<'b>, ...)` as a
+///   safe default with `Co` and `Contra` optionally substituted where appropriate.
+///   Choosing `Co` or `Contra` for any lifetime parameter without respecting the
+///   rules of [Subtyping and Variance], or excluding any independent lifetime
+///   parameter from the `Transience` is undefined behavior.
 ///
 /// [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
 /// [`Timeless`]: crate::transience::Timeless

@@ -16,11 +16,11 @@ use syn::{Error as SynError, Result as SynResult};
 ///
 /// This macro is limited to structs satisfying the following conditions:
 /// - There must be at most 1 lifetime parameter. Structs with extra lifetime
-/// parameters can easily implement the trait by hand, but care must be taken
-/// to ensure that the invariants detailed in the trait's [safety docs] are
-/// upheld.
+///   parameters can easily implement the trait by hand, but care must be taken
+///   to ensure that the invariants detailed in the trait's [safety docs] are
+///   upheld.
 /// - There may be any number of type (or const) parameters, but the trait
-/// will only be implemented where `T: 'static` for each type parameter `T`.
+///   will only be implemented where `T: 'static` for each type parameter `T`.
 ///
 /// # Customization
 /// By default, the [variance] of a deriving struct is assumed to be _invariant_

@@ -22,31 +22,31 @@ pub use std::any::{type_name, type_name_of_val};
 ///
 /// # Differences from `std::any::Any`
 /// - Types must first implement (or derive) the [`Transient`] trait before the
-/// blanket impl for all `T: Transient` will apply to them.
+///   blanket impl for all `T: Transient` will apply to them.
 /// - In addition to importing the `Any` trait, the [`Downcast`] trait must also
-/// be brought into scope for the `dyn Any` methods to become available. An
-/// additional extension trait [`Transcend`] can also be imported to add methods
-/// that enable transitions from one [`Transience`] to another.
+///   be brought into scope for the `dyn Any` methods to become available. An
+///   additional extension trait [`Transcend`] can also be imported to add methods
+///   that enable transitions from one [`Transience`] to another.
 /// - Non-`'static` types can be erased by parameterizing the trait with the
-/// desired [`Transience`], which the compiler will ensure is compatible. Types
-/// that *are* `'static` can use any `Transience` they want, or exclude the
-/// parameter to use the default of `()`.
+///   desired [`Transience`], which the compiler will ensure is compatible. Types
+///   that *are* `'static` can use any `Transience` they want, or exclude the
+///   parameter to use the default of `()`.
 /// - Not all `dyn Any<_>`'s are equal; the type parameter is considered to be
-/// be a part of the type, so `dyn Any<Co<'_>>` is a different type than
-/// `dyn Any<()>` and they could not be stored together in the same `Vec`. To
-/// circumvent this limitation, a type `T` can be erased to any transience that
-/// is a *supertype* of `T::Transience`; for example, a `usize` can be erased
-/// to `dyn Any<Co<'_>>` instead of the default `dyn Any<()>` so that it can
-/// be stored in a `Vec` with covariant types such as `&'a usize`. Alternatively,
-/// methods such as [`transcend`][Transcend::transcend] can be used to adjust the
-/// transience at a later time. Note that if the transience is upcast to a
-/// shorter lifetime (or a longer lifetime in the *contravariant* case), then
-/// it can only be safely [`downcast`][Downcast::downcast] to the shortened lifetime
-/// instead of the original (but if you are brave and/or careful, `unsafe`
-/// methods such as [`transcend_unbounded`][Transcend::transcend_unbounded]
-/// can be used to get around this).
+///   be a part of the type, so `dyn Any<Co<'_>>` is a different type than
+///   `dyn Any<()>` and they could not be stored together in the same `Vec`. To
+///   circumvent this limitation, a type `T` can be erased to any transience that
+///   is a *supertype* of `T::Transience`; for example, a `usize` can be erased
+///   to `dyn Any<Co<'_>>` instead of the default `dyn Any<()>` so that it can
+///   be stored in a `Vec` with covariant types such as `&'a usize`. Alternatively,
+///   methods such as [`transcend`][Transcend::transcend] can be used to adjust the
+///   transience at a later time. Note that if the transience is upcast to a
+///   shorter lifetime (or a longer lifetime in the *contravariant* case), then
+///   it can only be safely [`downcast`][Downcast::downcast] to the shortened lifetime
+///   instead of the original (but if you are brave and/or careful, `unsafe`
+///   methods such as [`transcend_unbounded`][Transcend::transcend_unbounded]
+///   can be used to get around this).
 /// - The [`Any::type_id`] method is difficult to use on concrete types as
-/// explained in its docstring; using [`TypeId::of_val`] instead.
+///   explained in its docstring; using [`TypeId::of_val`] instead.
 /// - The `*_unchecked` methods do not require nightly builds.
 /// - Only `Box`s using the `Global` allocator are supported.
 /// - Only `Sized` types are supported.
