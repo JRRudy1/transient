@@ -62,7 +62,7 @@ struct MyUsizeRef<'a>(&'a usize);
 fn main() {
     let five = 5;
     let orig = MyUsizeRef(&five);
-    // we can erase the non-'static type...
+    // we can erase the 'static type...
     let erased: &dyn Any<Inv> = &orig;
     assert!(erased.is::<MyUsizeRef>());
     // and restore it...
@@ -75,7 +75,7 @@ fn main() {
 ```
 
 The `Inv` type used above stands for "invariant", which is the most conservative 
-form of a property known as [_variance_] that describes the behavior of a type 
+form of a property known as [variance] that describes the behavior of a type 
 with respect to a lifetime parameter. And understanding of variance will let 
 you utilize the advanced features of this crate, but is not necessary for most 
 purposes since the `Inv` type shown above be safely used for _any_ type with 
