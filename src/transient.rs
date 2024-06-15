@@ -340,8 +340,21 @@ const fn check_static_type<T: Transient>() {
     );
 }
 
+/// Safe trait that `'static` types can implement to get a free blanket impl
+/// of the `Transient` trait.
+///
+/// Implementing this trait results in a `Transient` implementation using `Self`
+/// as the `Static` type and `()` as the `Transience`, which is almost certainly
+/// what a `'static` type would want.
+pub trait Static: 'static {}
+
+unsafe impl<S: Static> Transient for S {
+    type Static = Self;
+    type Transience = ();
+}
+
 mod std_impls {
-    use super::Transient;
+    use super::{Static, Transient};
     use crate::{Co, Inv};
 
     use std::any::Any as StdAny;
@@ -394,15 +407,11 @@ mod std_impls {
             }
         }
     }
-    use impl_refs;
 
     macro_rules! impl_primatives {
         ( $($ty:ty),* $(,)? ) => {
             $(
-            unsafe impl Transient for $ty {
-                type Static = $ty;
-                type Transience = ();
-            }
+            impl Static for $ty {}
             impl_refs!($ty []);
             )*
         }
@@ -438,15 +447,10 @@ mod std_impls {
     }
     impl_refs!(HashMap<K, V> [K: Transient, V: Transient] (K::Transience, V::Transience));
 
-    unsafe impl<T: Transient> Transient for Box<T> {
-        type Static = Box<T::Static>;
-        type Transience = T::Transience;
-    }
     unsafe impl<T: Transient> Transient for Box<[T]> {
         type Static = Box<[T::Static]>;
         type Transience = T::Transience;
     }
-
     unsafe impl<'a, T: Transient + ToOwned> Transient for Cow<'a, T>
     where
         T::Static: ToOwned,
@@ -454,7 +458,6 @@ mod std_impls {
         type Static = Cow<'static, T::Static>;
         type Transience = (Co<'a>, T::Transience);
     }
-
     unsafe impl<T: Transient> Transient for Option<T> {
         type Static = Option<T::Static>;
         type Transience = T::Transience;
@@ -464,10 +467,8 @@ mod std_impls {
         type Transience = T::Transience;
     }
 
-    unsafe impl Transient for Box<dyn StdAny> {
-        type Static = Box<dyn StdAny>;
-        type Transience = ();
-    }
+    impl Static for Box<dyn StdAny> {}
+
     unsafe impl<'a> Transient for &'a dyn StdAny {
         type Static = &'static dyn StdAny;
         type Transience = Co<'a>;
@@ -483,14 +484,7 @@ mod ndarray_impls {
     use ndarray::{ArcArray, Array, ArrayView, ArrayViewMut, CowArray, Dimension};
 
     /// Requires the `ndarray` crate feature
-    unsafe impl<T, D> crate::Transient for Array<T, D>
-    where
-        T: 'static,
-        D: Dimension + 'static,
-    {
-        type Static = Array<T, D>;
-        type Transience = ();
-    }
+    impl<T: 'static, D: Dimension + 'static> crate::Static for Array<T, D> {}
 
     /// Requires the `ndarray` crate feature
     unsafe impl<'a, T, D> crate::Transient for ArrayView<'a, T, D>
@@ -539,10 +533,7 @@ mod pyo3_impls {
     use pyo3::{Borrowed, Bound, Py, PyRef, PyRefMut};
 
     /// Requires the `pyo3` crate feature
-    unsafe impl<T: 'static> crate::Transient for Py<T> {
-        type Static = Py<T>;
-        type Transience = ();
-    }
+    impl<T: 'static> crate::Static for Py<T> {}
 
     /// Requires the `pyo3` crate feature
     unsafe impl<'py, T: 'static> crate::Transient for Bound<'py, T> {
@@ -571,7 +562,6 @@ mod pyo3_impls {
 
 #[cfg(feature = "numpy")]
 mod numpy_impls {
-
     use ndarray::Dimension;
     use numpy::{Element, PyReadonlyArray, PyReadwriteArray};
 

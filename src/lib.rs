@@ -322,7 +322,7 @@ mod transient;
 pub use crate::any::{Any, TypeId};
 
 #[doc(inline)]
-pub use crate::transient::Transient;
+pub use crate::transient::{Static, Transient};
 
 #[doc(inline)]
 pub use transience::{Co, Contra, Inv, Timeless, Transience};
