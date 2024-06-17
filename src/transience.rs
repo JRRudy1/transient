@@ -147,12 +147,9 @@ pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 /// `unsafe` assertion that it is a [subtype] of `Other` and can safely be used
 /// anywhere  that `Other` is expected. In the context of the `transient` crate,
 /// this implementation empowers a type [`T: Transient<Transience=R>`] to be
-/// erased to [`dyn Any<Other>`] in addition the `dyn Any<R>` suggested by
-/// its `Transient` impl. Additionally, the existence of this impl allows the
-/// [`Transcend::transcend::<Other>`] method to be called to convert `dyn Any<R>`
-/// to `dyn Any<Other>`. Either of these operations would result in undefined
-/// behavior if `R` was not actually a subtype of `Other`, hence the `unsafe`
-/// declaration on this trait.
+/// erased to [`dyn Any<Other>`] in addition the `dyn Any<R>` suggested by its
+/// `Transient` impl. This would result in undefined behavior if `R` was not
+/// actually a subtype of `Other`, hence the `unsafe` declaration on this trait.
 ///
 /// This trait is closely related to the [`CanRecoverFrom`] trait which bounds
 /// the transiences that can be recovered when restored `dyn Any<R>` to its
@@ -186,7 +183,6 @@ pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 ///
 /// [`T: Transient<Transience=R>`]: crate::Transient
 /// [`dyn Any<Other>`]: crate::Any
-/// [`Transcend::transcend::<Other>`]: crate::Transcend::transcend
 /// [subtype]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub unsafe trait CanTranscendTo<Other> {}
 

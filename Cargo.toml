@@ -1,6 +1,6 @@
 [package]
 name = "transient"
-version = "0.1.2"
+version = "0.2.0"
 description = "Reimplementation of `std::any::Any` with support for non-`'static` types"
 authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
 readme = "README.md"
