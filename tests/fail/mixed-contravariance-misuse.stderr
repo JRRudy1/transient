@@ -1,12 +1,12 @@
 error: lifetime may not live long enough
-  --> tests/fail/mixed-contravariance-misuse.rs:16:5
-   |
-13 | fn shorten<'b, 'short, 'long: 'short>(
-   |                ------  ----- lifetime `'long` defined here
-   |                |
-   |                lifetime `'short` defined here
+ --> tests/fail/mixed-contravariance-misuse.rs:9:5
+  |
+6 | fn shorten<'b, 'short, 'long: 'short>(
+  |                ------  ----- lifetime `'long` defined here
+  |                |
+  |                lifetime `'short` defined here
 ...
-16 |     long_long
-   |     ^^^^^^^^^ cast requires that `'short` must outlive `'long`
-   |
-   = help: consider adding the following bound: `'short: 'long`
+9 |     long_long.transcend_ref()
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^ cast requires that `'short` must outlive `'long`
+  |
+  = help: consider adding the following bound: `'short: 'long`

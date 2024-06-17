@@ -319,7 +319,7 @@ pub mod transience;
 mod transient;
 
 #[doc(inline)]
-pub use crate::any::{Any, Downcast, TypeId};
+pub use crate::any::{Any, TypeId};
 
 #[doc(inline)]
 pub use crate::transient::{Static, Transient};
@@ -328,6 +328,8 @@ pub use crate::transient::{Static, Transient};
 pub use transience::{Co, Contra, Inv, Timeless, Transience};
 
 pub use transience::{CanRecoverFrom, CanTranscendTo};
+
+pub use crate::any::{Downcast, Transcend};
 
 #[cfg(feature = "derive")]
 pub use transient_derive::Transient;

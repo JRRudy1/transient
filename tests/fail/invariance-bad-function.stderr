@@ -1,14 +1,14 @@
 error: lifetime may not live long enough
-  --> tests/fail/invariance-bad-function.rs:15:5
-   |
-14 | fn shrink<'a, 'b: 'a>(long: Box<S<'b>>) -> Box<dyn Any<Inv<'a>> + '_> {
-   |           --  -- lifetime `'b` defined here
-   |           |
-   |           lifetime `'a` defined here
-15 |     long
-   |     ^^^^ function was supposed to return data with lifetime `'b` but it is returning data with lifetime `'a`
-   |
-   = help: consider adding the following bound: `'a: 'b`
-   = note: requirement occurs because of the type `transient::Inv<'_>`, which makes the generic argument `'_` invariant
-   = note: the struct `transient::Inv<'a>` is invariant over the parameter `'a`
-   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+ --> tests/fail/invariance-bad-function.rs:8:5
+  |
+7 | fn shrink<'a, 'b: 'a>(long: Box<dyn Any<Inv<'b>>>) -> Box<dyn Any<Inv<'a>>> {
+  |           --  -- lifetime `'b` defined here
+  |           |
+  |           lifetime `'a` defined here
+8 |     long.transcend()
+  |     ^^^^^^^^^^^^^^^^ function was supposed to return data with lifetime `'b` but it is returning data with lifetime `'a`
+  |
+  = help: consider adding the following bound: `'a: 'b`
+  = note: requirement occurs because of the type `transient::Inv<'_>`, which makes the generic argument `'_` invariant
+  = note: the struct `transient::Inv<'a>` is invariant over the parameter `'a`
+  = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

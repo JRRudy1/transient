@@ -136,9 +136,9 @@ mod mixed_lifetimes {
     /// `'long` (contravariance), and the second lifetime parameter to shorten
     /// from `'long` to `'short` (covariance).
     fn lengthen<'b, 'short, 'long: 'short>(
-        short: &'b M<'short, 'long>,
+        short: &'b dyn Any<ContraCo<'short, 'long>>,
     ) -> &'b dyn Any<ContraCo<'long, 'short>> {
-        short
+        short.transcend_ref()
     }
 
     #[test]
@@ -154,11 +154,11 @@ mod mixed_lifetimes {
             string: static_str,
         };
         let erased_short: Box<dyn Any<ContraCo>> = Box::new(short);
-        assert_eq!(erased_short.type_id(), TypeId::of::<M>());
+        assert_eq!(erased_short.type_id(), any::TypeId::of::<M>());
         // the first (contra) param must lengthen from `'_` to `'static`
         requires_static(&*erased_short);
 
         let erased_long: &dyn Any<ContraCo> = &long;
-        assert_eq!(erased_long.type_id(), TypeId::of::<M>());
+        assert_eq!(erased_long.type_id(), any::TypeId::of::<M>());
     }
 }
