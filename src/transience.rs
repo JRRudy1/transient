@@ -363,31 +363,31 @@ macro_rules! impl_scalar_to_tuples {
 
         // 2-tuple* => scalar => 2-tuple*
         unsafe impl<'a, R1, R2> CanTranscendTo<$typ> for (R1, R2)
-            where R1: CanTranscendTo<$typ>, R2: CanTranscendTo<Self> {}
+            where R1: CanTranscendTo<$typ>, R2: CanTranscendTo<$typ> {}
         unsafe impl<'a, R1, R2> CanRecoverFrom<$typ> for (R1, R2)
-            where R1: CanRecoverFrom<$typ>, R2: CanRecoverFrom<Self> {}
+            where R1: CanRecoverFrom<$typ>, R2: CanRecoverFrom<$typ> {}
 
         // 3-tuple* => scalar => 3-tuple*
         unsafe impl<'a, R1, R2, R3> CanTranscendTo<$typ> for (R1, R2, R3)
-            where R1: CanTranscendTo<Self>,
-                  R2: CanTranscendTo<Self>,
-                  R3: CanTranscendTo<Self>,  {}
+            where R1: CanTranscendTo<$typ>,
+                  R2: CanTranscendTo<$typ>,
+                  R3: CanTranscendTo<$typ>,  {}
         unsafe impl<'a, R1, R2, R3> CanRecoverFrom<$typ> for (R1, R2, R3)
-            where R1: CanRecoverFrom<Self>,
-                  R2: CanRecoverFrom<Self>,
-                  R3: CanRecoverFrom<Self>,  {}
+            where R1: CanRecoverFrom<$typ>,
+                  R2: CanRecoverFrom<$typ>,
+                  R3: CanRecoverFrom<$typ>,  {}
 
         // 4-tuple* => scalar => 4-tuple*
         unsafe impl<'a, R1, R2, R3, R4> CanTranscendTo<$typ> for (R1, R2, R3, R4)
-            where R1: CanTranscendTo<Self>,
-                  R2: CanTranscendTo<Self>,
-                  R3: CanTranscendTo<Self>,
-                  R4: CanTranscendTo<Self>,  {}
+            where R1: CanTranscendTo<$typ>,
+                  R2: CanTranscendTo<$typ>,
+                  R3: CanTranscendTo<$typ>,
+                  R4: CanTranscendTo<$typ>,  {}
         unsafe impl<'a, R1, R2, R3, R4> CanRecoverFrom<$typ> for (R1, R2, R3, R4)
-            where R1: CanRecoverFrom<Self>,
-                  R2: CanRecoverFrom<Self>,
-                  R3: CanRecoverFrom<Self>,
-                  R4: CanRecoverFrom<Self>,  {}
+            where R1: CanRecoverFrom<$typ>,
+                  R2: CanRecoverFrom<$typ>,
+                  R3: CanRecoverFrom<$typ>,
+                  R4: CanRecoverFrom<$typ>,  {}
 
         )*
     }
