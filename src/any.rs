@@ -18,15 +18,13 @@ pub use std::any::{type_name, type_name_of_val};
 /// added support for non-`'static` types.
 ///
 /// This trait is primarily used as the `dyn Any<R>` trait object, which has its
-/// methods defined on the [`Downcast`] and [`Transcend`] extension traits.
+/// methods defined on the [`Downcast`] extension trait.
 ///
 /// # Differences from `std::any::Any`
 /// - Types must first implement (or derive) the [`Transient`] trait before the
 ///   blanket impl for all `T: Transient` will apply to them.
 /// - In addition to importing the `Any` trait, the [`Downcast`] trait must also
-///   be brought into scope for the `dyn Any` methods to become available. An
-///   additional extension trait [`Transcend`] can also be imported to add methods
-///   that enable transitions from one [`Transience`] to another.
+///   be brought into scope for the `dyn Any` methods to become available.
 /// - Non-`'static` types can be erased by parameterizing the trait with the
 ///   desired [`Transience`], which the compiler will ensure is compatible. Types
 ///   that *are* `'static` can use any `Transience` they want, or exclude the
@@ -37,14 +35,12 @@ pub use std::any::{type_name, type_name_of_val};
 ///   circumvent this limitation, a type `T` can be erased to any transience that
 ///   is a *supertype* of `T::Transience`; for example, a `usize` can be erased
 ///   to `dyn Any<Co<'_>>` instead of the default `dyn Any<()>` so that it can
-///   be stored in a `Vec` with covariant types such as `&'a usize`. Alternatively,
-///   methods such as [`transcend`][Transcend::transcend] can be used to adjust the
-///   transience at a later time. Note that if the transience is upcast to a
-///   shorter lifetime (or a longer lifetime in the *contravariant* case), then
-///   it can only be safely [`downcast`][Downcast::downcast] to the shortened lifetime
-///   instead of the original (but if you are brave and/or careful, `unsafe`
-///   methods such as [`transcend_unbounded`][Transcend::transcend_unbounded]
-///   can be used to get around this).
+///   be stored in a `Vec` with covariant types such as `&'a usize`. Note that if
+///   the transience is upcast to a shorter lifetime (or a longer lifetime in the
+///   *contravariant* case), then it can only be safely [`downcast`] to the
+///   shortened lifetime instead of the original (but if you are brave and/or
+///   careful, you can get around this using `unsafe` hacks like raw pointer
+///   casts and [`std::mem::transmute`]).
 /// - The [`Any::type_id`] method is difficult to use on concrete types as
 ///   explained in its docstring; using [`TypeId::of_val`] instead.
 /// - The `*_unchecked` methods do not require nightly builds.
@@ -53,6 +49,8 @@ pub use std::any::{type_name, type_name_of_val};
 ///
 /// This trait has a blanket `impl` for all [`Transient`] types with a compatible
 /// [`Transience`], and cannot be implemented directly.
+///
+/// [`downcast`]: Downcast::downcast
 pub trait Any<R: Transience = ()> {
     /// Gets the `TypeId` of `self`, typically as an erased `dyn Any` trait object.
     ///
@@ -94,7 +92,7 @@ impl<R: Transience> std::fmt::Debug for dyn Any<R> + '_ {
 ///
 /// This trait has an implementation provided for the `dyn Any` trait object,
 /// as in not intended to be implemented by downstream types.
-pub trait Downcast<R: Transience>: Transcend<R> {
+pub trait Downcast<R: Transience> {
     /// Returns `true` if the concrete type of the erased object is `T`, which can
     /// be used to predict the outcome of calling the [`downcast`][Self::downcast]
     /// and similar methods.
@@ -164,70 +162,6 @@ pub trait Downcast<R: Transience>: Transcend<R> {
     unsafe fn downcast_mut_unchecked<T: Transient>(&mut self) -> &mut T
     where
         T::Transience: CanRecoverFrom<R>;
-}
-
-/// Extension trait defining methods for transitioning a [`dyn Any<_>`][Any]
-/// trait from one [`Transience`] to another.
-///
-/// This trait has an implementation provided for the `dyn Any` trait object,
-/// as in not intended to be implemented by downstream types.
-pub trait Transcend<R: Transience> {
-    /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend<R2: Transience>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R: CanTranscendTo<R2>;
-
-    /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend_ref<R2: Transience>(&self) -> &dyn Any<R2>
-    where
-        R: CanTranscendTo<R2>;
-
-    /// Upcast to another `Transience` in compliance with sub-typing relationships.
-    fn transcend_mut<R2: Transience>(&mut self) -> &mut dyn Any<R2>
-    where
-        R: CanTranscendTo<R2>;
-
-    /// Cast to another `Transience` without enforcing sub-typing relationships.
-    ///
-    /// For a safe alternative see [`transcend`].
-    ///
-    /// # Safety
-    /// An invalid transition must not be performed unless external invariants
-    /// guarantee that the type is valid for the new `Transience`. Calling this
-    /// method with an incompatible transience can lead to *undefined behavior*.
-    ///
-    /// [`transcend`]: Transcend::transcend
-    unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: Transience;
-
-    /// Cast to another `Transience` without enforcing sub-typing relationships.
-    ///
-    /// For a safe alternative see [`transcend_ref`].
-    ///
-    /// # Safety
-    /// An invalid transition must not be performed unless external invariants
-    /// guarantee that the type is valid for the new `Transience`. Calling this
-    /// method with an incompatible transience can lead to *undefined behavior*.
-    ///
-    /// [`transcend_ref`]: Transcend::transcend_ref
-    unsafe fn transcend_ref_unbounded<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: Transience;
-
-    /// Cast to another `Transience` without enforcing sub-typing relationships.
-    ///
-    /// For a safe alternative see [`transcend_mut`].
-    ///
-    /// # Safety
-    /// An invalid transition must not be performed unless external invariants
-    /// guarantee that the type is valid for the new `Transience`. Calling this
-    /// method with an incompatible transience can lead to *undefined behavior*.
-    ///
-    /// [`transcend_mut`]: Transcend::transcend_mut
-    unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: Transience;
 }
 
 impl<R: Transience> Downcast<R> for dyn Any<R> + '_ {
@@ -312,68 +246,6 @@ impl<R: Transience> Downcast<R> for dyn Any<R> + '_ {
         // ensures that the lifetime parameters of the returned type satisfy
         // the necessary subtyping relationships.
         &mut *(self as *mut Self).cast()
-    }
-}
-
-impl<R: Transience> Transcend<R> for dyn Any<R> + '_ {
-    #[inline]
-    fn transcend<R2: Transience>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R: CanTranscendTo<R2>,
-    {
-        // The trait bound on `R` guarantees that the transience is compatible.
-        unsafe { self.transcend_unbounded::<R2>() }
-    }
-
-    #[inline]
-    fn transcend_ref<R2: Transience>(&self) -> &dyn Any<R2>
-    where
-        R: CanTranscendTo<R2>,
-    {
-        // The trait bound on `R` guarantees that the transience is compatible.
-        unsafe { self.transcend_ref_unbounded::<R2>() }
-    }
-
-    #[inline]
-    fn transcend_mut<R2: Transience>(&mut self) -> &mut dyn Any<R2>
-    where
-        R: CanTranscendTo<R2>,
-    {
-        // The trait bound on `R` guarantees that the transience is compatible.
-        unsafe { self.transcend_mut_unbounded::<R2>() }
-    }
-
-    #[inline]
-    unsafe fn transcend_unbounded<R2>(self: Box<Self>) -> Box<dyn Any<R2>>
-    where
-        R2: Transience,
-    {
-        // `Box<dyn Any<_>>` always has the same layout regardless of the
-        // transience so transmuting the type is safe, and the caller is
-        // expected to ensure that the transience is compatible.
-        std::mem::transmute(self)
-    }
-
-    #[inline]
-    unsafe fn transcend_ref_unbounded<R2>(&self) -> &dyn Any<R2>
-    where
-        R2: Transience,
-    {
-        // `&dyn Any<_>` always has the same layout regardless of the
-        // transience so transmuting the type is safe, and the caller is
-        // expected to ensure that the transience is compatible.
-        &*(self as *const Self as *const _)
-    }
-
-    #[inline]
-    unsafe fn transcend_mut_unbounded<R2>(&mut self) -> &mut dyn Any<R2>
-    where
-        R2: Transience,
-    {
-        // `&mut dyn Any<_>` always has the same layout regardless of the
-        // transience so transmuting the type is safe, and the caller is
-        // expected to ensure that the transience is compatible.
-        &mut *(self as *mut Self as *mut _)
     }
 }
 
@@ -533,68 +405,109 @@ mod tests {
 
         // owned `usize`
         let value = 5_usize;
-        let _: Box<dyn Any<()>> = Box::new(5_usize);
+        let ts: Box<dyn Any<()>> = Box::new(5_usize);
+        let co: Box<dyn Any<Co>> = Box::new(5_usize);
+        let inv: Box<dyn Any<Inv>> = Box::new(5_usize);
+        assert_eq!(*ts.downcast::<usize>().unwrap(), value);
+        assert_eq!(*co.downcast::<usize>().unwrap(), value);
+        assert_eq!(*inv.downcast::<usize>().unwrap(), value);
 
         // borrowed `usize`
-        let _: &dyn Any = &value;
-        let _co: &dyn Any<Co> = &value;
-        let x = _co.transcend_ref::<Inv>();
-        let _: &usize = _co.downcast_ref().unwrap();
+        let ts: &dyn Any = &value;
+        let co: &dyn Any<Co> = &value;
+        let inv: &dyn Any<Inv> = &value;
+        assert_eq!(ts.downcast_ref::<usize>().unwrap(), &value);
+        assert_eq!(co.downcast_ref::<usize>().unwrap(), &value);
+        assert_eq!(inv.downcast_ref::<usize>().unwrap(), &value);
 
         // owned `&usize`
-        let r: &usize = &value;
-        let x: Box<dyn Any<Co>> = Box::new(r);
-        let _: Box<dyn Any<Inv>> = Box::new(&value);
-        let y: Box<&usize> = x.downcast::<&usize>().unwrap();
+        let valref: &usize = &value;
+        let co: Box<dyn Any<Co>> = Box::new(valref);
+        let inv: Box<dyn Any<Inv>> = Box::new(valref);
+        assert_eq!(*co.downcast::<&usize>().unwrap(), valref);
+        assert_eq!(*inv.downcast::<&usize>().unwrap(), valref);
 
         // borrowed `&usize`
-        let valref = &5_usize;
-        let _: &dyn Any<Inv> = &valref;
         let co: &dyn Any<Co> = &valref;
-        let _: &&usize = co.downcast_ref().unwrap();
-        let inv = co.transcend_ref::<Inv>();
+        let inv: &dyn Any<Inv> = &valref;
+        assert_eq!(co.downcast_ref::<&usize>().unwrap(), &valref);
+        assert_eq!(inv.downcast_ref::<&usize>().unwrap(), &valref);
 
         // owned `&&usize`
-        let _: Box<dyn Any<(Inv, Inv)>> = Box::new(&valref);
-        let _: Box<dyn Any<(Co, Inv)>> = Box::new(&valref);
-        let _: Box<dyn Any<(Co, Co)>> = Box::new(&valref);
+        let valrefref = &valref;
+        let inv_inv: Box<dyn Any<(Inv, Inv)>> = Box::new(valrefref);
+        let inv_co: Box<dyn Any<(Inv, Co)>> = Box::new(valrefref);
+        let co_inv: Box<dyn Any<(Co, Inv)>> = Box::new(valrefref);
+        let co_co: Box<dyn Any<(Co, Co)>> = Box::new(valrefref);
+        let co: Box<dyn Any<Co>> = Box::new(valrefref);
+        let inv: Box<dyn Any<Inv>> = Box::new(valrefref);
+        assert_eq!(*inv_inv.downcast::<&&usize>().unwrap(), valrefref);
+        assert_eq!(*inv_co.downcast::<&&usize>().unwrap(), valrefref);
+        assert_eq!(*co_inv.downcast::<&&usize>().unwrap(), valrefref);
+        assert_eq!(*co_co.downcast::<&&usize>().unwrap(), valrefref);
+        assert_eq!(*co.downcast::<&&usize>().unwrap(), valrefref);
+        assert_eq!(*inv.downcast::<&&usize>().unwrap(), valrefref);
 
         // borrowed `&&usize`
-        let valrefref = &valref;
-        let _: &dyn Any<(Inv, Inv)> = &valrefref;
-        let _: &dyn Any<(Co, Inv)> = &valrefref;
-        let _: &dyn Any<(Inv, Co)> = &valrefref;
-        let _: &dyn Any<(Co, Co)> = &valrefref;
+        let inv_inv: &dyn Any<(Inv, Inv)> = &valrefref;
+        let co_inv: &dyn Any<(Co, Inv)> = &valrefref;
+        let inv_co: &dyn Any<(Inv, Co)> = &valrefref;
+        let co_co: &dyn Any<(Co, Co)> = &valrefref;
+        let co: &dyn Any<Co> = &valrefref;
+        let inv: &dyn Any<Inv> = &valrefref;
+        assert_eq!(inv_inv.downcast_ref::<&&usize>().unwrap(), &valrefref);
+        assert_eq!(co_inv.downcast_ref::<&&usize>().unwrap(), &valrefref);
+        assert_eq!(inv_co.downcast_ref::<&&usize>().unwrap(), &valrefref);
+        assert_eq!(co_co.downcast_ref::<&&usize>().unwrap(), &valrefref);
+        assert_eq!(co.downcast_ref::<&&usize>().unwrap(), &valrefref);
+        assert_eq!(inv.downcast_ref::<&&usize>().unwrap(), &valrefref);
 
-        // borrowed `&mut &mut usize`
-        let mut mutval = 5_usize;
-        let mut mutref = &mut mutval;
-        let mut mutrefref = &mut mutref;
-
-        let _: &dyn Any<(Inv, Inv)> = &mutrefref;
-        let _: &dyn Any<(Co, Inv)> = &mutrefref;
-        let _co: &dyn Any<Co> = &valref;
-        let _: &dyn Any<Inv> = _co.transcend_ref();
-        let _: &mut dyn Any<(Co, Inv)> = &mut mutrefref;
-
-        let erased: Box<dyn Any> = Box::new(5_usize);
-        let _: Box<usize> = erased.downcast().unwrap();
-
-        let erased: &dyn Any = &value;
-        let _: &usize = erased.downcast_ref().unwrap();
+        {
+            // owned `&mut &mut usize`
+            let mut value = 5_usize;
+            let mut valmut = &mut value;
+            let inv_inv: Box<dyn Any<(Inv, Inv)>> = Box::new(&mut valmut);
+            assert_eq!(
+                *inv_inv.downcast::<&mut &mut usize>().unwrap(),
+                &mut &mut 5usize
+            );
+            let co_inv: Box<dyn Any<(Co, Inv)>> = Box::new(&mut valmut);
+            assert_eq!(
+                *co_inv.downcast::<&mut &mut usize>().unwrap(),
+                &mut &mut 5usize
+            );
+            let inv: Box<dyn Any<Inv>> = Box::new(&mut valmut);
+            assert_eq!(
+                *inv.downcast::<&mut &mut usize>().unwrap(),
+                &mut &mut 5usize
+            );
+        }
+        {
+            // borrowed `&mut &mut usize`
+            let mut value = 5_usize;
+            let mut valmut = &mut value;
+            let valmutmut = &mut valmut;
+            let inv_inv: &dyn Any<(Inv, Inv)> = &valmutmut;
+            assert_eq!(
+                inv_inv.downcast_ref::<&mut &mut usize>().unwrap(),
+                &&mut &mut 5usize
+            );
+            let co_inv: &dyn Any<(Co, Inv)> = &valmutmut;
+            assert_eq!(
+                co_inv.downcast_ref::<&mut &mut usize>().unwrap(),
+                &&mut &mut 5usize
+            );
+            let inv: &dyn Any<Inv> = &valmutmut;
+            assert_eq!(
+                inv.downcast_ref::<&mut &mut usize>().unwrap(),
+                &&mut &mut 5usize
+            );
+        }
     }
 
     #[test]
     fn test_custom() {
         use crate::{Co, Contra, Inv};
-
-        fn contra_to_inv<'a, 'b: 'a>(arg1: &'a dyn Any<Contra<'a>>) -> &'a dyn Any<Inv<'b>> {
-            arg1.transcend_ref()
-        }
-
-        fn co_to_inv<'a, 'b: 'a>(arg1: &'a dyn Any<Co<'b>>) -> &'a dyn Any<Inv<'a>> {
-            arg1.transcend_ref()
-        }
 
         #[derive(Debug, Clone)]
         pub struct Usize(usize);
@@ -617,27 +530,29 @@ mod tests {
         let stc: Box<dyn Any<()>> = Box::new(usize_.clone());
         let inv: Box<dyn Any<Inv>> = Box::new(usize_.clone());
         let co: Box<dyn Any<Co>> = Box::new(usize_.clone());
-        let tr: Box<dyn Any<Inv>> = co.transcend();
-        assert_eq!(tr.downcast::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(stc.downcast::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(inv.downcast::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(co.downcast::<Usize>().unwrap().0, 5_usize);
 
         // borrowed `Usize`
         let stc: &dyn Any<()> = &usize_;
         let inv: &dyn Any<Inv> = &usize_;
         let co: &dyn Any<Co> = &usize_;
-        let tr: &dyn Any<Inv> = co.transcend_ref();
-        assert_eq!(tr.downcast_ref::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(stc.downcast_ref::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(inv.downcast_ref::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(co.downcast_ref::<Usize>().unwrap().0, 5_usize);
 
         // owned `UsizeRef`
         let usize_ref = UsizeRef(&usize_.0);
         let inv: Box<dyn Any<Inv>> = Box::new(usize_ref.clone());
         let co: Box<dyn Any<Co>> = Box::new(usize_ref.clone());
-        let tr: Box<dyn Any<Inv>> = co.transcend();
-        assert_eq!(tr.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
 
         // borrowed `UsizeRef`
         let inv: &dyn Any<Inv> = &usize_ref;
         let co: &dyn Any<Co> = &usize_ref;
-        let tr: &dyn Any<Inv> = co.transcend_ref();
-        assert_eq!(tr.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
     }
 }

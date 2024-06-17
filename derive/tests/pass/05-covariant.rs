@@ -1,5 +1,5 @@
 //! Tests the behavior when used on structs with no type parameters
-use transient::{Transient, Any, Downcast, Transcend, Co, Inv};
+use transient::{Any, Co, Downcast, Inv, Transient};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
 struct SS<'a> {
@@ -15,13 +15,10 @@ struct _SS<'a> {
 
 fn main() {
     let string = "qwer".to_string();
-    let original = SS{value: &string};
+    let original = SS { value: &string };
     let inv_erased = &original as &dyn Any<Inv>;
     assert_eq!(inv_erased.downcast_ref::<SS>(), Some(&original));
 
     let co_erased = &original as &dyn Any<Co>;
     assert_eq!(co_erased.downcast_ref::<SS>(), Some(&original));
-
-    let tr_erased: &dyn Any<Inv> = co_erased.transcend_ref();
-    assert_eq!(tr_erased.downcast_ref::<SS>(), Some(&original));
 }

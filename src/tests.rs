@@ -46,7 +46,7 @@ mod basic {
         let value = "qwer".to_string();
         let original = S { value: &value };
         let erased: &dyn Any<Co> = &original;
-        assert_eq!(erased.type_id(), any::TypeId::of::<S>());
+        assert_eq!(erased.type_id(), TypeId::of::<S>());
         let restored = erased.downcast_ref::<S>().unwrap();
         assert_eq!(restored, &original);
     }
@@ -55,7 +55,7 @@ mod basic {
         let value = "qwer".to_string();
         let mut original = S { value: &value };
         let erased: &mut dyn Any<Co> = &mut original;
-        assert_eq!(erased.type_id(), any::TypeId::of::<S>());
+        assert_eq!(erased.type_id(), TypeId::of::<S>());
         let restored = erased.downcast_mut::<S>().unwrap().clone();
         assert_eq!(restored, original);
     }
@@ -110,7 +110,6 @@ mod generics {
 #[test]
 fn variance_tests() {
     let t = trybuild::TestCases::new();
-    // t.pass("tests/pass/*.rs");
     t.compile_fail("tests/fail/*.rs");
 }
 
@@ -137,9 +136,9 @@ mod mixed_lifetimes {
     /// `'long` (contravariance), and the second lifetime parameter to shorten
     /// from `'long` to `'short` (covariance).
     fn lengthen<'b, 'short, 'long: 'short>(
-        short: &'b dyn Any<ContraCo<'short, 'long>>,
+        short: &'b M<'short, 'long>,
     ) -> &'b dyn Any<ContraCo<'long, 'short>> {
-        short.transcend_ref()
+        short
     }
 
     #[test]
@@ -155,11 +154,11 @@ mod mixed_lifetimes {
             string: static_str,
         };
         let erased_short: Box<dyn Any<ContraCo>> = Box::new(short);
-        assert_eq!(erased_short.type_id(), any::TypeId::of::<M>());
+        assert_eq!(erased_short.type_id(), TypeId::of::<M>());
         // the first (contra) param must lengthen from `'_` to `'static`
         requires_static(&*erased_short);
 
         let erased_long: &dyn Any<ContraCo> = &long;
-        assert_eq!(erased_long.type_id(), any::TypeId::of::<M>());
+        assert_eq!(erased_long.type_id(), TypeId::of::<M>());
     }
 }

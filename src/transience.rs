@@ -27,10 +27,10 @@ use std::marker::PhantomData;
 /// made between (single-lifetime) transiences, where the _rows_ represent
 /// the starting point for a type (i.e. the `Transience` it defines in its
 /// `Transient` impl), and the _columns_ represent a transience it wishes to
-/// transition to (i.e. when being cast to `dyn Any<_>` or calling the
-/// [`transcend`] method). Upon being [`downcast`] the trait object
-/// would then return to a _row_ in the table, ideally back where it started
-/// (although not always, as discussed in the next section):
+/// transition to (i.e. when being cast to `dyn Any<_>`). Upon being
+/// [`downcast`] the trait object would then return to a _row_ in the table,
+/// ideally back where it started (although not always, as discussed in the
+/// next section):
 ///
 /// <table style="width:80%">
 ///   <tr style="font-size: 12px;">
@@ -131,17 +131,13 @@ use std::marker::PhantomData;
 /// dealing with a case where _you know_ what you are working with and that the
 /// `'long` lifetime _is_ valid; but the whole point of type-erasure is that
 /// sometimes you _dont_ know/care, or you don't want to compiler to know/care,
-/// and sometimes ignorance has a cost. On the bright side, if you _really
-/// are_ confident that `'long` is valid, you can `unsafe`-ly fix it using either
-/// the [`transcend_unbounded`] method or conventional hacks like
+/// and sometimes ignorance has a cost. On the bright side, if you _really are_
+/// confident that `'long` is valid, you can `unsafe`-ly fix it using hacks like
 /// [`std::mem::transmute`] and raw pointer casts (at your own risk, of course).
 ///
 /// [`Transience` associated type]: crate::Transient::Transience
-/// [`Transcend::transcend`]: crate::Transcend::transcend
-/// [`transcend`]: crate::Transcend::transcend
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [`downcast`]: crate::Downcast::downcast
-/// [`transcend_unbounded`]: crate::Transcend::transcend_unbounded
 pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 
 /// Unsafe marker trait indicating that the implementing [`Transience`] can
