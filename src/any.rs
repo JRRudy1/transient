@@ -536,10 +536,10 @@ mod tests {
         let ts: Box<dyn Any<()>> = Box::new(5_usize);
         let co: Box<dyn Any<Co>> = Box::new(5_usize);
         let inv: Box<dyn Any<Inv>> = Box::new(5_usize);
+        let _ = co.transcend_ref::<Inv>();
         assert_eq!(*ts.downcast::<usize>().unwrap(), value);
         assert_eq!(*co.downcast::<usize>().unwrap(), value);
         assert_eq!(*inv.downcast::<usize>().unwrap(), value);
-        let x = co.transcend_ref::<Inv>();
 
         // borrowed `usize`
         let ts: &dyn Any = &value;
@@ -668,10 +668,9 @@ mod tests {
         let stc: Box<dyn Any<()>> = Box::new(usize_.clone());
         let inv: Box<dyn Any<Inv>> = Box::new(usize_.clone());
         let co: Box<dyn Any<Co>> = Box::new(usize_.clone());
+        let tr: Box<dyn Any<Inv>> = co.transcend();
         assert_eq!(stc.downcast::<Usize>().unwrap().0, 5_usize);
         assert_eq!(inv.downcast::<Usize>().unwrap().0, 5_usize);
-        assert_eq!(co.downcast::<Usize>().unwrap().0, 5_usize);
-        let tr: Box<dyn Any<Inv>> = co.transcend();
         assert_eq!(tr.downcast::<Usize>().unwrap().0, 5_usize);
 
         // borrowed `Usize`
