@@ -84,6 +84,18 @@ impl<R: Transience> std::fmt::Debug for dyn Any<R> + '_ {
     }
 }
 
+impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + '_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Any").finish_non_exhaustive()
+    }
+}
+
+impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + Sync + '_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Any").finish_non_exhaustive()
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // `dyn Any` extension traits
 ///////////////////////////////////////////////////////////////////////////////
@@ -561,6 +573,32 @@ mod tests {
         // borrowed `UsizeRef`
         let inv: &dyn Any<Inv> = &usize_ref;
         let co: &dyn Any<Co> = &usize_ref;
+        assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send
+        let usize_ref = UsizeRef(&usize_.0);
+        let inv: Box<dyn Any<Inv> + Send> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // borrowed `UsizeRef` + Send
+        let inv: &(dyn Any<Inv> + Send) = &usize_ref;
+        let co: &(dyn Any<Co> + Send) = &usize_ref;
+        assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send + Sync
+        let usize_ref = UsizeRef(&usize_.0);
+        let inv: Box<dyn Any<Inv> + Send + Sync> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send + Sync> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // borrowed `UsizeRef` + Send + Sync
+        let inv: &(dyn Any<Inv> + Send + Sync) = &usize_ref;
+        let co: &(dyn Any<Co> + Send + Sync) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
     }

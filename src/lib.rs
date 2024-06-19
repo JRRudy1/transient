@@ -42,9 +42,6 @@
 //! - Requires a single `unsafe` trait to be implemented for types wishing to
 //!   utilize the crate's functionality; however, this trait is usually trivial
 //!   to safely implement, and a `derive` macro is provided for common cases
-//! - Only emulates the non-`Send`/`Sync` variant of the stdlib's `Any` trait
-//!   for now, but support for `Any + Send` and `Any + Send + Sync` can be added
-//!   if requested
 //! - Only `Sized` types are supported. Removing this restriction would be
 //!   trivial, but makes it awkward to name generic types that require their
 //!   parameters to be `T: Sized` since `T::Static: Sized` must be explicitly
