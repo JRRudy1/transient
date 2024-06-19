@@ -255,7 +255,7 @@ pub unsafe trait Transient: Sized {
     /// See the [`Transient`] trait's docstring for examples and a discussion of
     /// the considerations necessary for defining the type in various cases.
     ///
-    /// # SAFETY
+    /// # Safety
     /// This must be equivalent to the implementing type, such that matching its
     /// [`TypeId`] to that of a `dyn Any` trait objects is sufficient justification
     /// for performing a [`std::mem::transmute`] or raw pointer cast to it
@@ -266,7 +266,7 @@ pub unsafe trait Transient: Sized {
     ///
     /// See the [`Transience`] docstring for a thorough explanation and examples.
     ///
-    /// # SAFETY
+    /// # Safety
     /// This type must sufficiently capture the _variance_ characteristics of the
     /// type with respect to every one of its lifetime parameters as discussed in
     /// the documentation for the trait.
