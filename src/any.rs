@@ -78,24 +78,6 @@ where
     }
 }
 
-impl<R: Transience> std::fmt::Debug for dyn Any<R> + '_ {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Any").finish_non_exhaustive()
-    }
-}
-
-impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + '_ {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Any").finish_non_exhaustive()
-    }
-}
-
-impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + Sync + '_ {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Any").finish_non_exhaustive()
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // `dyn Any` extension traits
 ///////////////////////////////////////////////////////////////////////////////
@@ -177,9 +159,9 @@ pub trait Downcast<R: Transience> {
         T::Transience: CanRecoverFrom<R>;
 }
 
-macro_rules! impl_downcast {
+macro_rules! dyn_any_impls {
     ($($for:tt)*) => {
-        impl<R: Transience> Downcast<R> for dyn Any<R> $($for)* {
+        impl<R: Transience> Downcast<R> for dyn Any<R> $($for)* + '_ {
             #[inline]
             fn is<T: Transient>(&self) -> bool {
                 self.type_id() == TypeId::of::<T>()
@@ -263,12 +245,26 @@ macro_rules! impl_downcast {
                 &mut *(self as *mut Self).cast()
             }
         }
+
+        impl<R: Transience> std::fmt::Debug for dyn Any<R> $($for)* + '_ {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("dyn Any<")?;
+                f.write_str(type_name::<R>().rsplit("::").next().unwrap())?;
+                let xtraits = stringify!($($for)*);
+                if xtraits.len() > 0 {
+                    f.write_str("> ")?;
+                    f.write_str(xtraits)
+                } else {
+                    f.write_str(">")
+                }
+            }
+        }
     };
 }
 
-impl_downcast!(+ '_);
-impl_downcast!(+ Send + '_);
-impl_downcast!(+ Send + Sync + '_);
+dyn_any_impls!();
+dyn_any_impls!(+ Send);
+dyn_any_impls!(+ Send + Sync);
 
 ///////////////////////////////////////////////////////////////////////////////
 // `TypeID` and its methods
@@ -562,6 +558,7 @@ mod tests {
         assert_eq!(stc.downcast_ref::<Usize>().unwrap().0, 5_usize);
         assert_eq!(inv.downcast_ref::<Usize>().unwrap().0, 5_usize);
         assert_eq!(co.downcast_ref::<Usize>().unwrap().0, 5_usize);
+        assert_eq!(&format!("{:?}", stc), "dyn Any<()>");
 
         // owned `UsizeRef`
         let usize_ref = UsizeRef(&usize_.0);
@@ -575,6 +572,7 @@ mod tests {
         let co: &dyn Any<Co> = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(&format!("{:?}", co), "dyn Any<Co>");
 
         // owned `UsizeRef` + Send
         let usize_ref = UsizeRef(&usize_.0);
@@ -588,6 +586,7 @@ mod tests {
         let co: &(dyn Any<Co> + Send) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(&format!("{:?}", co), "dyn Any<Co> + Send");
 
         // owned `UsizeRef` + Send + Sync
         let usize_ref = UsizeRef(&usize_.0);
@@ -601,5 +600,6 @@ mod tests {
         let co: &(dyn Any<Co> + Send + Sync) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(&format!("{:?}", inv), "dyn Any<Inv> + Send + Sync")
     }
 }
