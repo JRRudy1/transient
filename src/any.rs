@@ -9,6 +9,7 @@ use crate::{
 /// Re-export from the [`std::any`] module.
 ///
 pub use std::any::{type_name, type_name_of_val};
+use std::marker::{Send, Sync};
 
 ///////////////////////////////////////////////////////////////////////////////
 // `Any` trait
@@ -78,6 +79,18 @@ where
 }
 
 impl<R: Transience> std::fmt::Debug for dyn Any<R> + '_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Any").finish_non_exhaustive()
+    }
+}
+
+impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + '_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Any").finish_non_exhaustive()
+    }
+}
+
+impl<R: Transience> std::fmt::Debug for dyn Any<R> + Send + Sync + '_ {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Any").finish_non_exhaustive()
     }
@@ -164,90 +177,98 @@ pub trait Downcast<R: Transience> {
         T::Transience: CanRecoverFrom<R>;
 }
 
-impl<R: Transience> Downcast<R> for dyn Any<R> + '_ {
-    #[inline]
-    fn is<T: Transient>(&self) -> bool {
-        self.type_id() == TypeId::of::<T>()
-    }
+macro_rules! impl_downcast {
+    ($($for:tt)*) => {
+        impl<R: Transience> Downcast<R> for dyn Any<R> $($for)* {
+            #[inline]
+            fn is<T: Transient>(&self) -> bool {
+                self.type_id() == TypeId::of::<T>()
+            }
 
-    #[inline]
-    fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        if self.is::<T>() {
-            // We just confirmed that the type is correct.
-            Ok(unsafe { self.downcast_unchecked() })
-        } else {
-            Err(self)
+            #[inline]
+            fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                if <Self as Downcast<R>>::is::<T>(self.as_ref()) {
+                    // We just confirmed that the type is correct.
+                    Ok(unsafe { self.downcast_unchecked() })
+                } else {
+                    Err(self)
+                }
+            }
+
+            #[inline]
+            fn downcast_ref<T: Transient>(&self) -> Option<&T>
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                if <Self as Downcast<R>>::is::<T>(self) {
+                    // We just confirmed that the type is correct.
+                    Some(unsafe { self.downcast_ref_unchecked() })
+                } else {
+                    None
+                }
+            }
+
+            #[inline]
+            fn downcast_mut<T: Transient>(&mut self) -> Option<&mut T>
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                if <Self as Downcast<R>>::is::<T>(self) {
+                    // We just confirmed that the type is correct.
+                    Some(unsafe { self.downcast_mut_unchecked() })
+                } else {
+                    None
+                }
+            }
+
+            #[inline]
+            unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                // The caller is expected to ensure that the inner type is `T::Static`,
+                // which the `Transient` trait guarantees has the same layout as `T`,
+                // so the pointer cast is safe. The trait bound on `T::Transience`
+                // ensures that the lifetime parameters of the returned type satisfy
+                // the necessary subtyping relationships.
+                Box::from_raw(Box::into_raw(self).cast())
+            }
+
+            #[inline]
+            unsafe fn downcast_ref_unchecked<T: Transient>(&self) -> &T
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                // The caller is expected to ensure that the inner type is `T::Static`,
+                // which the `Transient` trait guarantees has the same layout as `T`,
+                // so the pointer casts are safe. The trait bound on `T::Transience`
+                // ensures that the lifetime parameters of the returned type satisfy
+                // the necessary subtyping relationships.
+                &*(self as *const Self).cast()
+            }
+
+            #[inline]
+            unsafe fn downcast_mut_unchecked<T: Transient>(&mut self) -> &mut T
+            where
+                T::Transience: CanRecoverFrom<R>,
+            {
+                // The caller is expected to ensure that the inner type is `T::Static`,
+                // which the `Transient` trait guarantees has the same layout as `T`,
+                // so the pointer casts are safe. The trait bound on `T::Transience`
+                // ensures that the lifetime parameters of the returned type satisfy
+                // the necessary subtyping relationships.
+                &mut *(self as *mut Self).cast()
+            }
         }
-    }
-
-    #[inline]
-    fn downcast_ref<T: Transient>(&self) -> Option<&T>
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        if self.is::<T>() {
-            // We just confirmed that the type is correct.
-            Some(unsafe { self.downcast_ref_unchecked() })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    fn downcast_mut<T: Transient>(&mut self) -> Option<&mut T>
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        if self.is::<T>() {
-            // We just confirmed that the type is correct.
-            Some(unsafe { self.downcast_mut_unchecked() })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        // The caller is expected to ensure that the inner type is `T::Static`,
-        // which the `Transient` trait guarantees has the same layout as `T`,
-        // so the pointer cast is safe. The trait bound on `T::Transience`
-        // ensures that the lifetime parameters of the returned type satisfy
-        // the necessary subtyping relationships.
-        Box::from_raw(Box::into_raw(self).cast())
-    }
-
-    #[inline]
-    unsafe fn downcast_ref_unchecked<T: Transient>(&self) -> &T
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        // The caller is expected to ensure that the inner type is `T::Static`,
-        // which the `Transient` trait guarantees has the same layout as `T`,
-        // so the pointer casts are safe. The trait bound on `T::Transience`
-        // ensures that the lifetime parameters of the returned type satisfy
-        // the necessary subtyping relationships.
-        &*(self as *const Self).cast()
-    }
-
-    #[inline]
-    unsafe fn downcast_mut_unchecked<T: Transient>(&mut self) -> &mut T
-    where
-        T::Transience: CanRecoverFrom<R>,
-    {
-        // The caller is expected to ensure that the inner type is `T::Static`,
-        // which the `Transient` trait guarantees has the same layout as `T`,
-        // so the pointer casts are safe. The trait bound on `T::Transience`
-        // ensures that the lifetime parameters of the returned type satisfy
-        // the necessary subtyping relationships.
-        &mut *(self as *mut Self).cast()
-    }
+    };
 }
+
+impl_downcast!(+ '_);
+impl_downcast!(+ Send + '_);
+impl_downcast!(+ Send + Sync + '_);
 
 ///////////////////////////////////////////////////////////////////////////////
 // `TypeID` and its methods
@@ -552,6 +573,32 @@ mod tests {
         // borrowed `UsizeRef`
         let inv: &dyn Any<Inv> = &usize_ref;
         let co: &dyn Any<Co> = &usize_ref;
+        assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send
+        let usize_ref = UsizeRef(&usize_.0);
+        let inv: Box<dyn Any<Inv> + Send> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // borrowed `UsizeRef` + Send
+        let inv: &(dyn Any<Inv> + Send) = &usize_ref;
+        let co: &(dyn Any<Co> + Send) = &usize_ref;
+        assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send + Sync
+        let usize_ref = UsizeRef(&usize_.0);
+        let inv: Box<dyn Any<Inv> + Send + Sync> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send + Sync> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // borrowed `UsizeRef` + Send + Sync
+        let inv: &(dyn Any<Inv> + Send + Sync) = &usize_ref;
+        let co: &(dyn Any<Co> + Send + Sync) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
     }
