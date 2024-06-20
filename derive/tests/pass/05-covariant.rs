@@ -2,14 +2,14 @@
 use transient::{Any, Co, Downcast, Inv, Transient};
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
+#[variance('a = covariant)]
 struct SS<'a> {
-    #[variance(unsafe_covariant)]
     value: &'a String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
+#[variance('a = cov)]
 struct _SS<'a> {
-    #[variance(unsafe_co)]
     value: &'a String,
 }
 
