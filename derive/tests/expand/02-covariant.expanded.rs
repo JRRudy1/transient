@@ -1,9 +1,5 @@
 //! Verifies that the `covariant` attribute expands as expected
 use transient_derive::Transient;
-struct NoGenerics {
-    #[variance(unsafe_covariant)]
-    value1: String,
-}
 struct LifetimeOnly<'a> {
     #[variance(unsafe_covariant)]
     value1: &'a str,
@@ -11,10 +7,6 @@ struct LifetimeOnly<'a> {
 unsafe impl<'a> ::transient::Transient for LifetimeOnly<'a> {
     type Static = LifetimeOnly<'static>;
     type Transience = ::transient::Co<'a>;
-}
-struct TypeOnly<T> {
-    #[variance(unsafe_covariant)]
-    value: T,
 }
 struct TypeAndLifetime<'a, T> {
     #[variance(unsafe_covariant)]

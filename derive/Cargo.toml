@@ -1,7 +1,7 @@
 [package]
 name = "transient-derive"
-version = "0.1.0"
-description = "Proc macro from deriving the `transient::Transient` trait"
+version = "0.2.0"
+description = "Proc macro for deriving the `transient::Transient` trait"
 authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
 keywords = ["any", "static", "downcast", "typeid"]
 homepage = "https://github.com/JRRudy1/transient"
@@ -21,7 +21,7 @@ path = "tests/test_derive.rs"
 [dependencies]
 proc-macro2 = { version = "1", default-features = false }
 quote = "1"
-syn = { version = "2", features = ["full"] }
+syn = { version = "2", features = ["full", "extra-traits"] }
 thiserror = "1"
 
 [dev-dependencies]

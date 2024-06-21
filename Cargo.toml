@@ -20,7 +20,7 @@ doctest = true
 members = ["derive"]
 
 [dependencies]
-transient-derive = { path = "derive", version = "0.1", optional = true }
+transient-derive = { path = "derive", version = "0.2", optional = true }
 ndarray = { version = "0.15", optional = true }
 numpy = { version = "0.21", optional = true }
 pyo3 = { version = "0.21", optional = true }

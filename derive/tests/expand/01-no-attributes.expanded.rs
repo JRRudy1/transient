@@ -3,10 +3,7 @@ use transient_derive::Transient;
 struct NoGenerics {
     value1: String,
 }
-unsafe impl ::transient::Transient for NoGenerics {
-    type Static = NoGenerics;
-    type Transience = ::transient::Timeless;
-}
+impl ::transient::Static for NoGenerics {}
 struct LifetimeOnly<'a> {
     value1: &'a str,
 }
@@ -17,10 +14,7 @@ unsafe impl<'a> ::transient::Transient for LifetimeOnly<'a> {
 struct TypeOnly<T> {
     value: T,
 }
-unsafe impl<T: 'static> ::transient::Transient for TypeOnly<T> {
-    type Static = TypeOnly<T>;
-    type Transience = ::transient::Timeless;
-}
+impl<T: 'static> ::transient::Static for TypeOnly<T> {}
 struct TypeAndLifetime<'a, T> {
     value: &'a T,
 }
