@@ -2,14 +2,14 @@
 use transient::{Transient, Any, Downcast, Contra, Inv};
 
 #[derive(Debug, Transient)]
+#[variance('a = contravariant)]
 struct FuncWrap<'a> {
-    #[variance(unsafe_contravariant)]
     func: fn(&'a str) -> &'static str,
 }
 
 #[derive(Debug, Transient)]
+#[variance('a = contra)]
 struct _FuncWrap<'a> {
-    #[variance(unsafe_contra)]
     func: fn(&'a str) -> &'static str,
 }
 

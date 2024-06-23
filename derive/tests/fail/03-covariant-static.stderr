@@ -1,7 +1,0 @@
-error: A variance cannot be requested for a struct without
-       a lifetime parameter!
-
- --> tests/fail/03-covariant-static.rs:7:5
-  |
-7 |     #[variance(unsafe_covariant)]
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

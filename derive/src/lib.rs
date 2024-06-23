@@ -32,6 +32,18 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
         })
         .collect::<SynResult<Vec<_>>>()?;
     let bounds: Vec<_> = attrs.into_iter().flatten().collect();
+    for life in &bounds {
+        if !input
+            .generics
+            .lifetimes()
+            .any(|l| l.lifetime == life.lifetime)
+        {
+            return Err(syn::Error::new(
+                life.lifetime.span(),
+                format!("Lifetime `{}` is not defined", life.lifetime),
+            ));
+        }
+    }
     let mut checks = vec![];
     let transience = input
         .generics

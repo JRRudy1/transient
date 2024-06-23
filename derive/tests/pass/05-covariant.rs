@@ -8,7 +8,7 @@ struct SS<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Transient)]
-#[variance('a = cov)]
+#[variance('a = co)]
 struct _SS<'a> {
     value: &'a String,
 }
