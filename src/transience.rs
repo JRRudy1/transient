@@ -2,6 +2,7 @@
 //! structs that implement it. This module also defines the [`CanTranscendTo`] and
 //! [`CanRecoverFrom`] traits that establish the allowable transitions between
 //! transiences.
+use crate::tr::Transient;
 use std::marker::PhantomData;
 
 /// Marker trait for types used to establish the [variance] of a type with
@@ -135,10 +136,10 @@ use std::marker::PhantomData;
 /// confident that `'long` is valid, you can `unsafe`-ly fix it using hacks like
 /// [`std::mem::transmute`] and raw pointer casts (at your own risk, of course).
 ///
-/// [`Transience` associated type]: crate::Transient::Transience
+/// [`Transience` associated type]: Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [`downcast`]: crate::Downcast::downcast
-pub trait Transience: Sized + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
+pub trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
 
 /// Unsafe marker trait indicating that the implementing [`Transience`] can
 /// safely upcast to the parameterizing `Transience`.
@@ -254,6 +255,11 @@ pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
 
 impl<'a> Transience for Inv<'a> {}
 
+unsafe impl<'a> Transient for Inv<'a> {
+    type Static = Inv<'static>;
+    type Transience = Self;
+}
+
 /// Used to declare an [_covariant_] relationship between a type and its lifetime
 /// parameter.
 ///
@@ -270,6 +276,11 @@ pub struct Co<'a>(PhantomData<&'a ()>);
 
 impl<'a> Transience for Co<'a> {}
 
+unsafe impl<'a> Transient for Co<'a> {
+    type Static = Co<'static>;
+    type Transience = Self;
+}
+
 /// Used to declare an [_contravariant_] relationship between a type and its lifetime
 /// parameter.
 ///
@@ -285,6 +296,11 @@ impl<'a> Transience for Co<'a> {}
 pub struct Contra<'a>(PhantomData<fn(&'a ())>);
 
 impl<'a> Transience for Contra<'a> {}
+
+unsafe impl<'a> Transient for Contra<'a> {
+    type Static = Contra<'static>;
+    type Transience = Self;
+}
 
 // ************************************************************************* //
 // ************************* SAFETY-CRITICAL LOGIC! ************************ //
@@ -401,6 +417,13 @@ macro_rules! impl_equal_tuples {
         where
             $( $src: Transience ),*
         {}
+        unsafe impl<$($src),*> Transient for ($($src),*,)
+        where
+            $( $src: Transience ),*
+        {
+            type Static = ($(<$src as Transient>::Static),*,);
+            type Transience = Self;
+        }
         unsafe impl<$($src),*, $($dst),*> CanTranscendTo<($($dst),*,)> for ($($src),*,)
         where
             $( $src: CanTranscendTo<$dst> ),* ,
