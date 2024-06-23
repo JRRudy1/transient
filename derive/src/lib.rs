@@ -10,7 +10,52 @@ use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, spanned::Spanned, DeriveInput, Ident, Lifetime, TypeParamBound};
 use syn::{GenericParam, LifetimeParam, Result as SynResult, Token};
 
-/// Derive macro to implement the `Transient` trait for a struct.
+/// Derive macro to implement the `Transient` trait for a struct (or enum).
+///
+/// # Customization
+/// By default, the [variance] is assumed to be _invariant_ with respect to each
+/// of it's lifetime parameters. However, there are a variety of situations where
+/// you might want a more precise variance. In these situations, you can specify
+/// what variance you believe your type has, and this macro will emit additional
+/// code that validates the implementation. Right now, this often causes unhelpful
+/// error messages, since the compiler assumes you want to change the generated function
+/// signature, and we have to way to tell the compiler that the generated code only exists
+/// to validate the trait implementation.
+///
+/// To set a specific variance on your type, annotate the struct with `#[variance(...)]`,
+/// providing the lifetime, and variance you want it to have.
+///
+/// |  Keyword | Alias | Description |
+/// | :-  | :- | :- |
+/// | `invariant` | `inv` | Declares a _invariant_ relationship with the lifetime; this is the default for types with a lifetime parameter.
+/// | `covariant` | `co` | Declares a _covariant_ relationship with the lifetime
+/// | `contravariant` | `contra` | Declares a _covariant_ relationship with the lifetime
+///
+/// # Examples
+/// Here the derive assumes the lifetime `'a` is _invariant_.
+/// ```rust
+/// use transient::Transient;
+/// 
+/// #[derive(Transient)]
+/// struct S<'a> {
+///     value: &'a str,
+/// }
+/// ```
+///
+/// Here the derive verifies the lifetime `'a` is _covariant_.
+/// ```rust
+/// use transient::Transient;
+/// 
+/// #[derive(Transient)]
+/// #[variance('a = covariant)] // or #[variance('a = co)]
+/// struct S<'a> {
+///     value: &'a str,
+/// }
+/// ```
+///
+/// # Notes
+/// If the type does not have any lifetime parameters, this derive will generate an implementation of
+/// `Static`, which has a blanket implementation of `Transient`.
 #[proc_macro_derive(Transient, attributes(variance))]
 pub fn derive_transient(input: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(input as DeriveInput);
@@ -32,6 +77,7 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
         })
         .collect::<SynResult<Vec<_>>>()?;
     let bounds: Vec<_> = attrs.into_iter().flatten().collect();
+
     for life in &bounds {
         if !input
             .generics
@@ -44,6 +90,20 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
             ));
         }
     }
+    let mut generics = input.generics.clone();
+    for t in generics.type_params_mut() {
+        t.bounds
+            .push(TypeParamBound::Lifetime(Lifetime::new("'static", span)));
+    }
+    let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
+
+    if input.generics.lifetimes().count() == 0 {
+        return Ok(quote! {
+            impl #impl_gen ::transient::Static for #name #ty_gen
+                #where_clause {}
+        });
+    }
+    
     let mut checks = vec![];
     let transience = input
         .generics
@@ -72,12 +132,6 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
         })
         .collect::<SynResult<Punctuated<TokenStream2, Token![,]>>>()?;
 
-    let mut generics = input.generics.clone();
-    for t in generics.type_params_mut() {
-        t.bounds
-            .push(TypeParamBound::Lifetime(Lifetime::new("'static", span)));
-    }
-    let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let mut static_generics = input.generics.clone();
     for l in static_generics.lifetimes_mut() {
         l.lifetime = Lifetime::new("'static", l.lifetime.span());
