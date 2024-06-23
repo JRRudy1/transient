@@ -349,9 +349,17 @@ unsafe impl<S: Static> Transient for S {
 
 #[track_caller]
 const fn check_static_type<T: Transient>() {
+    use std::alloc::Layout;
+    use std::mem::size_of;
+
     assert!(
-        std::mem::size_of::<T>() == std::mem::size_of::<T::Static>(),
+        size_of::<T>() == size_of::<T::Static>(),
         "Size mismatch! `T::Static` should be the same as `T` \
+          but with its lifetimes replaced by `'static`"
+    );
+    assert!(
+        Layout::new::<T>().align() == Layout::new::<T::Static>().align(),
+        "Alignment mismatch! `T::Static` should be the same as `T` \
           but with its lifetimes replaced by `'static`"
     );
 }
