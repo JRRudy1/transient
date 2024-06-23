@@ -4,14 +4,17 @@ use crate::any::{Any, TypeId};
 use crate::transience::Transience;
 
 /// Unsafe trait defining the lifetime-relationships of a potentially non-`'static`
-/// type so that it can be safely erased to [`dyn Any`][crate::Any]. This trait can
-/// be derived using the [`Transient` derive macro].
+/// type so that it can be safely erased to [`dyn Any`]. This trait can be safely
+/// derived for most types using the [`Transient` derive macro].
+///
+/// Note that `'static` types with no lifetime parameters can instead implement the
+/// _safe_ [`Static`] trait to get a free blanket implementation of this trait.
 ///
 /// # Implementing the `Transient` trait
 /// Implementing the [`Transient`] trait only requires the definition of two
 /// associated types: the [`Static`][Self::Static] type, and the
 /// [`Transience`][Self::Transience]. The requirements for safely choosing
-/// these types are explaining in the following subsections.
+/// these types are explained in the following subsections.
 ///
 /// ## The `Static` associated type
 /// This type should be the same as the `Self` type but with all lifetime
@@ -238,7 +241,7 @@ use crate::transience::Transience;
 ///   rules of [Subtyping and Variance], or excluding any independent lifetime
 ///   parameter from the `Transience` is undefined behavior.
 ///
-/// [`dyn Any`]: https://doc.rust-lang.org/std/any/index.html#any-and-typeid
+/// [`dyn Any`]: Any
 /// [`Timeless`]: crate::transience::Timeless
 /// [`Inv<'a>`]: crate::transience::Inv
 /// [`Co<'a>`]: crate::transience::Co
@@ -331,17 +334,8 @@ pub unsafe trait Transient: Sized {
     }
 }
 
-#[track_caller]
-const fn check_static_type<T: Transient>() {
-    assert!(
-        std::mem::size_of::<T>() == std::mem::size_of::<T::Static>(),
-        "Size mismatch! `T::Static` should be the same as `T` \
-          but with its lifetimes replaced by `'static`"
-    );
-}
-
 /// Safe trait that `'static` types can implement to get a free blanket impl
-/// of the `Transient` trait.
+/// of the [`Transient`] trait.
 ///
 /// Implementing this trait results in a `Transient` implementation using `Self`
 /// as the `Static` type and `()` as the `Transience`, which is almost certainly
@@ -351,6 +345,15 @@ pub trait Static: 'static {}
 unsafe impl<S: Static> Transient for S {
     type Static = Self;
     type Transience = ();
+}
+
+#[track_caller]
+const fn check_static_type<T: Transient>() {
+    assert!(
+        std::mem::size_of::<T>() == std::mem::size_of::<T::Static>(),
+        "Size mismatch! `T::Static` should be the same as `T` \
+          but with its lifetimes replaced by `'static`"
+    );
 }
 
 mod std_impls {

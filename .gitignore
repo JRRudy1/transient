@@ -1,6 +1,7 @@
 
 # cargo
 Cargo.lock
+.cargo
 
 # build artifacts
 target

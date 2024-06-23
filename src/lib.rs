@@ -332,7 +332,7 @@ pub use transient_derive::Transient;
 /// Re-exports the [`Transient`] trait to enable unambiguously importing it
 /// instead of the [`Transient`][transient_derive::Transient] derive macro.
 pub mod tr {
-    pub use super::transient::Transient;
+    pub use super::transient::{Static, Transient};
 }
 
 #[cfg(test)]

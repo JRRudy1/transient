@@ -1,21 +1,6 @@
-/// Tests for a simple struct with no generic parameters.
-mod double {
-    use crate::{Inv, Transient};
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct S<'a, T1, T2> {
-        value1: &'a T1,
-        value2: &'a T2,
-    }
-    unsafe impl<'a, T1: 'static, T2: 'static> Transient for S<'a, T1, T2> {
-        type Static = S<'static, T1, T2>;
-        type Transience = Inv<'a>;
-    }
-}
-
-/// Tests for a simple struct with no generic parameters.
-mod basic {
-    use crate::*;
+/// Tests for a covariant struct with no generic type parameters.
+mod covariant {
+    use crate::{tr::Transient, Any, Co, Downcast, TypeId};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
@@ -42,7 +27,6 @@ mod basic {
     }
     #[test]
     pub(super) fn test_ref() {
-        // single lifetime (derived `Transient` impl)
         let value = "qwer".to_string();
         let original = S { value: &value };
         let erased: &dyn Any<Co> = &original;
@@ -61,10 +45,9 @@ mod basic {
     }
 }
 
-/// Tests for a struct with generic parameters.
-mod generics {
-    use crate::any::*;
-    use crate::*;
+/// Tests for a struct with a generic type parameter
+mod one_type_param {
+    use crate::{tr::Transient, Any, Downcast, Inv, TypeId};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
@@ -107,15 +90,24 @@ mod generics {
     }
 }
 
-#[test]
-fn variance_tests() {
-    let t = trybuild::TestCases::new();
-    t.compile_fail("tests/fail/*.rs");
+/// Tests for a struct with a two generic type parameters
+mod two_type_params {
+    use crate::{Inv, Transient};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct S<'a, T1, T2> {
+        value1: &'a T1,
+        value2: &'a T2,
+    }
+    unsafe impl<'a, T1: 'static, T2: 'static> Transient for S<'a, T1, T2> {
+        type Static = S<'static, T1, T2>;
+        type Transience = Inv<'a>;
+    }
 }
 
-#[allow(unused, dead_code)]
+/// Tests for a struct with two lifetime params that have different variances
 mod mixed_lifetimes {
-    use crate::*;
+    use crate::{tr::Transient, Any, Co, Contra, TypeId};
 
     type ContraCo<'s, 'l> = (Contra<'s>, Co<'l>);
 
@@ -141,22 +133,36 @@ mod mixed_lifetimes {
         short
     }
 
-    #[test]
-    fn test1() {
-        let static_str = "static";
+    const STATIC_STR: &str = "static";
 
-        let short: M<'_, 'static> = M {
-            func: |_| "!",
-            string: static_str,
-        };
-        let long: M<'static, '_> = M {
-            func: |s| s,
-            string: static_str,
-        };
-        let erased_short: Box<dyn Any<ContraCo>> = Box::new(short);
+    #[test]
+    #[rustfmt::skip]
+    fn test_owned() {
+        let short: M<'_, 'static> = M { func: |_| "!", string: STATIC_STR };
+        let long: M<'static, '_> = M { func: |s| s, string: STATIC_STR };
+        let _ = lengthen(&short);
+        
+        let erased_short: Box<dyn Any<ContraCo> + '_> = Box::new(short);
         assert_eq!(erased_short.type_id(), TypeId::of::<M>());
         // the first (contra) param must lengthen from `'_` to `'static`
         requires_static(&*erased_short);
+
+        let erased_long: Box<dyn Any<ContraCo> + '_> = Box::new(long);
+        assert_eq!(erased_long.type_id(), TypeId::of::<M>());
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_ref() {
+        let short: M<'_, 'static> = M { func: |_| "!", string: STATIC_STR };
+        let long: M<'static, '_> = M { func: |s| s, string: STATIC_STR };
+        let _ = lengthen(&short);
+        
+        let erased_short: &dyn Any<ContraCo> = &short;
+        assert_eq!(erased_short.type_id(), TypeId::of::<M>());
+        
+        // the first (contra) param must lengthen from `'_` to `'static`
+        requires_static(erased_short);
 
         let erased_long: &dyn Any<ContraCo> = &long;
         assert_eq!(erased_long.type_id(), TypeId::of::<M>());

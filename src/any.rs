@@ -403,14 +403,13 @@ impl std::hash::Hash for TypeId {
 }
 
 #[cfg(test)]
-#[allow(unused)]
+// FIXME: move to crate::tests
 mod tests {
-    use super::*;
+    use super::{Any, Downcast};
+    use crate::{tr::Transient, Co, Inv};
 
     #[test]
     fn test_primative() {
-        use crate::{Co, Inv};
-
         let val = 5;
         let valref = &val;
         let valrefref = &valref;
@@ -524,8 +523,6 @@ mod tests {
 
     #[test]
     fn test_custom() {
-        use crate::{Co, Contra, Inv};
-
         #[derive(Debug, Clone)]
         pub struct Usize(usize);
 
