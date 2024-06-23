@@ -35,7 +35,7 @@ use syn::{GenericParam, LifetimeParam, Result as SynResult, Token};
 /// Here the derive assumes the lifetime `'a` is _invariant_.
 /// ```rust
 /// use transient::Transient;
-/// 
+///
 /// #[derive(Transient)]
 /// struct S<'a> {
 ///     value: &'a str,
@@ -45,7 +45,7 @@ use syn::{GenericParam, LifetimeParam, Result as SynResult, Token};
 /// Here the derive verifies the lifetime `'a` is _covariant_.
 /// ```rust
 /// use transient::Transient;
-/// 
+///
 /// #[derive(Transient)]
 /// #[variance('a = covariant)] // or #[variance('a = co)]
 /// struct S<'a> {
@@ -103,7 +103,7 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
                 #where_clause {}
         });
     }
-    
+
     let mut checks = vec![];
     let transience = input
         .generics
