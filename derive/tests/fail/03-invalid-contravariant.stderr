@@ -1,0 +1,30 @@
+error: lifetime may not live long enough
+ --> tests/fail/03-invalid-contravariant.rs:4:10
+  |
+4 | #[derive(Transient)]
+  |          ^^^^^^^^^ function was supposed to return data with lifetime `'__test_lifetime` but it is returning data with lifetime `'a`
+5 | #[variance('a = contra)]
+6 | struct SsActualCoVariant<'a> {
+  |        ----------------- -- lifetime `'a` defined here
+  |        |
+  |        lifetime `'__test_lifetime` defined here
+  |
+  = help: consider adding the following bound: `'a: '__test_lifetime`
+  = note: this error originates in the derive macro `Transient` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: lifetime may not live long enough
+  --> tests/fail/03-invalid-contravariant.rs:10:10
+   |
+10 | #[derive(Transient)]
+   |          ^^^^^^^^^ function was supposed to return data with lifetime `'__test_lifetime` but it is returning data with lifetime `'a`
+11 | #[variance('a = contra)]
+12 | struct SsActualInvariant<'a> {
+   |        ----------------- -- lifetime `'a` defined here
+   |        |
+   |        lifetime `'__test_lifetime` defined here
+   |
+   = help: consider adding the following bound: `'a: '__test_lifetime`
+   = note: requirement occurs because of the type `SsActualInvariant<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `SsActualInvariant<'a>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+   = note: this error originates in the derive macro `Transient` (in Nightly builds, run with -Z macro-backtrace for more info)
