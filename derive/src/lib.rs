@@ -42,14 +42,14 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
                 .filter(|v| v.lifetime == l.lifetime)
                 .take(2)
                 .collect();
-            if var.len() == 0 {
+            if var.is_empty() {
                 let life = &l.lifetime;
                 let var = VarianceTy::Invariant;
                 Ok(quote! { #var<#life> })
             } else if var.len() == 1 {
                 let life = &l.lifetime;
                 let var = var[0].variance;
-                generate_check(&name, life, var, &input, &mut checks);
+                generate_check(name, life, var, &input, &mut checks);
                 Ok(quote! { #var<#life> })
             } else {
                 Err(syn::Error::new(
@@ -81,6 +81,8 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
             type Static = #name #static_ty_gen;
             type Transience = (#transience);
         }
+        #[allow(unused)]
+        #[allow(non_snake_case)]
         fn #checks_name() {
             #(#checks)*
         }
@@ -162,13 +164,18 @@ fn generate_check(
             let mut generics = input.generics.clone();
             // For now, we assume that all generics MUST be static
             for ty in generics.type_params_mut() {
-                ty.bounds.push(TypeParamBound::Lifetime(Lifetime::new("'static", name.span())));
+                ty.bounds.push(TypeParamBound::Lifetime(Lifetime::new(
+                    "'static",
+                    name.span(),
+                )));
             }
             let mut impl_gen = generics.clone();
             let test_lifetime = Lifetime::new("'__test_lifetime", name.span());
             let mut param_lifetime = LifetimeParam::new(test_lifetime.clone());
             param_lifetime.bounds.push(life.clone());
-            impl_gen.params.insert(0, GenericParam::Lifetime(param_lifetime));
+            impl_gen
+                .params
+                .insert(0, GenericParam::Lifetime(param_lifetime));
             let mut param_gen = generics.clone();
             for l in param_gen.lifetimes_mut() {
                 if &l.lifetime == life {
@@ -178,7 +185,7 @@ fn generate_check(
 
             let (_, param_gen, _) = param_gen.split_for_impl();
             let (_, generics, _) = generics.split_for_impl();
-            
+
             checks.push(quote! {
                 #[allow(unused)]
                 #[allow(non_snake_case)]
@@ -188,18 +195,23 @@ fn generate_check(
             });
         }
         VarianceTy::ContraVariant => {
-                        let ident = Ident::new(&format!("__validate_{}_{}", name, life.ident), name.span());
+            let ident = Ident::new(&format!("__validate_{}_{}", name, life.ident), name.span());
             // let ident_ty = Ident::new(&format!("{}_{}", name, life.ident), name.span());
             let mut generics = input.generics.clone();
             // For now, we assume that all generics MUST be static
             for ty in generics.type_params_mut() {
-                ty.bounds.push(TypeParamBound::Lifetime(Lifetime::new("'static", name.span())));
+                ty.bounds.push(TypeParamBound::Lifetime(Lifetime::new(
+                    "'static",
+                    name.span(),
+                )));
             }
             let mut impl_gen = generics.clone();
             let test_lifetime = Lifetime::new("'__test_lifetime", name.span());
             let mut param_lifetime = LifetimeParam::new(test_lifetime.clone());
             param_lifetime.bounds.push(life.clone());
-            impl_gen.params.insert(0, GenericParam::Lifetime(param_lifetime));
+            impl_gen
+                .params
+                .insert(0, GenericParam::Lifetime(param_lifetime));
             let mut param_gen = generics.clone();
             for l in param_gen.lifetimes_mut() {
                 if &l.lifetime == life {
