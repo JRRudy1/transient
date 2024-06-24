@@ -1,14 +1,13 @@
 //! Defines the [`Transient`][crate::Transient] derive macro that implements the
-//! [`Transient`][transient::tr::Transient] trait for a struct with at most 1
-//! lifetime parameter.
+//! [`Transient`][transient::tr::Transient] trait.
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::{quote, quote_spanned, ToTokens};
 use std::fmt;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, spanned::Spanned, DeriveInput, Ident, Lifetime, TypeParamBound};
-use syn::{GenericParam, LifetimeParam, Result as SynResult, Token};
+use syn::{GenericParam, Generics, LifetimeParam, Result as SynResult, Token};
 
 /// Derive macro to implement the `Transient` trait for a struct (or enum).
 ///
@@ -66,44 +65,58 @@ pub fn derive_transient(input: TokenStream) -> TokenStream {
 fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
     let span = input.span();
     let name = &input.ident;
-    let attrs = input
-        .attrs
-        .iter()
-        .map(|a| &a.meta)
-        .filter(|a| a.path().is_ident("variance"))
-        .map(|a| {
-            a.require_list()
-                .and_then(|l| l.parse_args_with(parse_variance))
-        })
-        .collect::<SynResult<Vec<_>>>()?;
-    let bounds: Vec<_> = attrs.into_iter().flatten().collect();
+    let bounds = extract_variance_parameters(&input)?;
 
-    for life in &bounds {
-        if !input
-            .generics
-            .lifetimes()
-            .any(|l| l.lifetime == life.lifetime)
-        {
-            return Err(syn::Error::new(
-                life.lifetime.span(),
-                format!("Lifetime `{}` is not defined", life.lifetime),
-            ));
-        }
-    }
-    let mut generics = input.generics.clone();
-    for t in generics.type_params_mut() {
-        t.bounds
-            .push(TypeParamBound::Lifetime(Lifetime::new("'static", span)));
-    }
+    let generics = generics_with_static_types(&input, span);
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
 
     if input.generics.lifetimes().count() == 0 {
-        return Ok(quote! {
+        Ok(quote! {
             impl #impl_gen ::transient::Static for #name #ty_gen
                 #where_clause {}
-        });
-    }
+        })
+    } else {
+        let (transience, checks) = extract_transience_type(&input, bounds, name)?;
+        let static_ty = extract_static_type(&input);
+        let checks_name = Ident::new(&format!("__validate_{}", name), name.span());
 
+        Ok(quote! {
+            unsafe impl #impl_gen ::transient::Transient for #name #ty_gen
+                #where_clause
+            {
+                type Static = #static_ty;
+                type Transience = (#transience);
+            }
+            #[allow(unused)]
+            #[allow(non_snake_case)]
+            fn #checks_name() {
+                #(#checks)*
+            }
+        })
+    }
+}
+
+fn extract_static_type(input: &DeriveInput) -> TokenStream2 {
+    let name = &input.ident;
+    let mut static_generics = input.generics.clone();
+    for l in static_generics.lifetimes_mut() {
+        l.lifetime = Lifetime::new("'static", l.lifetime.span());
+    }
+    let (_i, static_ty_gen, _) = static_generics.split_for_impl();
+    quote! { #name #static_ty_gen }
+}
+
+fn extract_transience_type(
+    input: &DeriveInput,
+    bounds: Vec<VarianceParam>,
+    name: &Ident,
+) -> Result<
+    (
+        Punctuated<TokenStream2, syn::token::Comma>,
+        Vec<TokenStream2>,
+    ),
+    syn::Error,
+> {
     let mut checks = vec![];
     let transience = input
         .generics
@@ -116,12 +129,12 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
                 .collect();
             if var.is_empty() {
                 let life = &l.lifetime;
-                let var = VarianceTy::Invariant;
+                let var = VarianceTy::Invariant(life.span());
                 Ok(quote! { #var<#life> })
             } else if var.len() == 1 {
                 let life = &l.lifetime;
                 let var = var[0].variance;
-                generate_check(name, life, var, &input, &mut checks);
+                generate_check(name, life, var, input, &mut checks);
                 Ok(quote! { #var<#life> })
             } else {
                 Err(syn::Error::new(
@@ -131,28 +144,45 @@ fn generate_impl(input: DeriveInput) -> SynResult<TokenStream2> {
             }
         })
         .collect::<SynResult<Punctuated<TokenStream2, Token![,]>>>()?;
+    Ok((transience, checks))
+}
 
-    let mut static_generics = input.generics.clone();
-    for l in static_generics.lifetimes_mut() {
-        l.lifetime = Lifetime::new("'static", l.lifetime.span());
+fn generics_with_static_types(input: &DeriveInput, span: Span) -> Generics {
+    let mut generics = input.generics.clone();
+    for t in generics.type_params_mut() {
+        t.bounds
+            .push(TypeParamBound::Lifetime(Lifetime::new("'static", span)));
     }
-    let (_i, static_ty_gen, _) = static_generics.split_for_impl();
+    generics
+    // let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
+    // (impl_gen, ty_gen, where_clause)
+}
 
-    let checks_name = Ident::new(&format!("__validate_{}", name), name.span());
-
-    Ok(quote! {
-        unsafe impl #impl_gen ::transient::Transient for #name #ty_gen
-            #where_clause
+fn extract_variance_parameters(input: &DeriveInput) -> Result<Vec<VarianceParam>, syn::Error> {
+    let attrs = input
+        .attrs
+        .iter()
+        .map(|a| &a.meta)
+        .filter(|a| a.path().is_ident("variance"))
+        .map(|a| {
+            a.require_list()
+                .and_then(|l| l.parse_args_with(parse_variance))
+        })
+        .collect::<SynResult<Vec<_>>>()?;
+    let bounds: Vec<_> = attrs.into_iter().flatten().collect();
+    for life in &bounds {
+        if !input
+            .generics
+            .lifetimes()
+            .any(|l| l.lifetime == life.lifetime)
         {
-            type Static = #name #static_ty_gen;
-            type Transience = (#transience);
+            return Err(syn::Error::new(
+                life.lifetime.span(),
+                format!("Lifetime `{}` is not defined", life.lifetime),
+            ));
         }
-        #[allow(unused)]
-        #[allow(non_snake_case)]
-        fn #checks_name() {
-            #(#checks)*
-        }
-    })
+    }
+    Ok(bounds)
 }
 
 struct VarianceParam {
@@ -172,11 +202,11 @@ fn parse_variance(a: ParseStream) -> SynResult<Punctuated<VarianceParam, Token![
     )
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy)]
 enum VarianceTy {
-    Invariant,
-    CoVariant,
-    ContraVariant,
+    Invariant(Span),
+    CoVariant(Span),
+    ContraVariant(Span),
     // Static,
 }
 
@@ -184,11 +214,11 @@ impl Parse for VarianceTy {
     fn parse(input: ParseStream) -> SynResult<Self> {
         let ident: Ident = input.parse()?;
         if ident == "invariant" || ident == "inv" {
-            Ok(Self::Invariant)
+            Ok(Self::Invariant(ident.span()))
         } else if ident == "covariant" || ident == "co" {
-            Ok(Self::CoVariant)
+            Ok(Self::CoVariant(ident.span()))
         } else if ident == "contravariant" || ident == "contra" {
-            Ok(Self::ContraVariant)
+            Ok(Self::ContraVariant(ident.span()))
         } else {
             Err(syn::Error::new_spanned(
                 ident,
@@ -202,9 +232,9 @@ impl Parse for VarianceTy {
 impl ToTokens for VarianceTy {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Invariant => tokens.extend(quote! { ::transient::Inv }),
-            Self::CoVariant => tokens.extend(quote! { ::transient::Co }),
-            Self::ContraVariant => tokens.extend(quote! { ::transient::Contra }),
+            Self::Invariant(sp) => tokens.extend(quote_spanned! { *sp => ::transient::Inv }),
+            Self::CoVariant(sp) => tokens.extend(quote_spanned! { *sp => ::transient::Co }),
+            Self::ContraVariant(sp) => tokens.extend(quote_spanned! { *sp => ::transient::Contra }),
         }
     }
 }
@@ -223,8 +253,8 @@ fn generate_check(
     checks: &mut Vec<TokenStream2>,
 ) {
     match var {
-        VarianceTy::Invariant => (), // Always safe
-        VarianceTy::CoVariant => {
+        VarianceTy::Invariant(_) => (), // Always safe
+        VarianceTy::CoVariant(sp) => {
             let ident = Ident::new(&format!("__validate_{}_{}", name, life.ident), name.span());
             // let ident_ty = Ident::new(&format!("{}_{}", name, life.ident), name.span());
             let mut generics = input.generics.clone();
@@ -252,7 +282,7 @@ fn generate_check(
             let (_, param_gen, _) = param_gen.split_for_impl();
             let (_, generics, _) = generics.split_for_impl();
 
-            checks.push(quote! {
+            checks.push(quote_spanned! { sp =>
                 #[allow(unused)]
                 #[allow(non_snake_case)]
                 fn #ident #impl_gen (v: #name #param_gen) -> #name #generics {
@@ -260,7 +290,7 @@ fn generate_check(
                 }
             });
         }
-        VarianceTy::ContraVariant => {
+        VarianceTy::ContraVariant(sp) => {
             let ident = Ident::new(&format!("__validate_{}_{}", name, life.ident), name.span());
             // let ident_ty = Ident::new(&format!("{}_{}", name, life.ident), name.span());
             let mut generics = input.generics.clone();
@@ -287,7 +317,7 @@ fn generate_check(
 
             let (_, param_gen, _) = param_gen.split_for_impl();
             let (_, generics, _) = generics.split_for_impl();
-            checks.push(quote! {
+            checks.push(quote_spanned! { sp =>
                 #[allow(unused)]
                 #[allow(non_snake_case)]
                 fn #ident #impl_gen (v: #name #generics) -> #name #param_gen {
