@@ -9,6 +9,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{parse_macro_input, parse_quote};
 use syn::{Data, DataStruct, DeriveInput, Fields, Generics, Ident, Lifetime};
+use syn::{GenericParam, LifetimeParam, TypeGenerics, WherePredicate};
 
 /// Derive macro that implements the  [`Transient`] trait for a struct with at
 /// most 1 lifetime parameter.
@@ -143,14 +144,17 @@ fn impl_static(params: StaticParams) -> TokenStream2 {
 /// generate `Transient` impl for the non-'static type
 fn impl_transient(params: TransientParams) -> TokenStream2 {
     let trait_ = quote!(::transient::Transient);
-    let (name, variance) = (params.name, params.variance);
+    let (name, transience) = (params.name, params.transience);
     let (impl_generics, ty_generics, where_) = params.generics.split_for_impl();
     let (_, static_generics, _) = params.static_generics.split_for_impl();
+
+    let checks_module = ChecksModule::construct(&name, &transience, &params.generics);
     quote!(
         unsafe impl #impl_generics #trait_ for #name #ty_generics #where_ {
             type Static = #name #static_generics;
-            type Transience = #variance;
+            type Transience = #transience;
         }
+        #checks_module
     )
 }
 
@@ -238,7 +242,7 @@ impl StaticParams {
 /// processed info for implementing the `Transient` trait
 struct TransientParams {
     name: Ident,
-    variance: Variance,
+    transience: Transience,
     generics: Generics,
     static_generics: Generics,
 }
@@ -246,9 +250,11 @@ struct TransientParams {
 impl TransientParams {
     /// extract info from the input AST
     fn extract(input: Input, lifetime: Lifetime) -> Result<Self> {
+        let variance = Self::get_variance(&input.fields, lifetime)?;
         Ok(TransientParams {
             name: input.name,
             variance: Self::get_variance(&input.fields, lifetime)?,
+            transience: Transience::Variance(variance),
             static_generics: Self::get_static_generics(&input.generics),
             generics: input.generics,
         })
@@ -356,6 +362,31 @@ impl ToTokens for Variance {
     }
 }
 
+#[derive(Debug)]
+enum Transience {
+    Variance(Variance),
+    #[allow(dead_code)]
+    Tuple(Vec<Variance>),
+}
+
+impl Transience {
+    fn as_slice(&self) -> &[Variance] {
+        match self {
+            Self::Variance(variance) => std::slice::from_ref(variance),
+            Self::Tuple(variances) => variances,
+        }
+    }
+}
+
+impl ToTokens for Transience {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            Self::Variance(v) => v.to_tokens(tokens),
+            Self::Tuple(vs) => quote!(#(#vs,)*).to_tokens(tokens),
+        }
+    }
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
@@ -406,5 +437,172 @@ impl Error {
 impl From<Error> for syn::Error {
     fn from(value: Error) -> Self {
         syn::Error::new(value.span(), value.to_string())
+    }
+}
+
+struct ChecksModule<'a> {
+    name: Ident,
+    funcs: Vec<CheckFn<'a>>,
+}
+
+impl<'a> ChecksModule<'a> {
+    fn construct(type_name: &'a Ident, transience: &'a Transience, generics: &'a Generics) -> Self {
+        let name = format!("__validate_{}", type_name.to_string());
+        ChecksModule {
+            name: Ident::new(&name, Span::call_site()),
+            funcs: transience
+                .as_slice()
+                .iter()
+                .filter_map(|v| construct_check(type_name, v, generics))
+                .collect(),
+        }
+    }
+}
+
+impl<'a> ToTokens for ChecksModule<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let ChecksModule { name, funcs } = self;
+        if funcs.len() == 0 {
+            return ();
+        }
+        quote!(
+            #[allow(non_snake_case, dead_code)]
+            mod #name {
+                use super::*;
+                #(#funcs)*
+            }
+        )
+        .to_tokens(tokens)
+    }
+}
+
+/// ```skip
+/// struct TypeAndLifetime<'a, 'b, T>(fn(&'b T) -> &'a T) where T: Clone;
+///
+/// #[allow(non_snake_case)]
+/// mod __validate_TypeAndLifetime {
+///     use super::TypeAndLifetime;
+///
+///     fn covariant_wrt_a<'__long, 'a, 'b, T>(
+///         v: TypeAndLifetime<'__long, 'b, T>,
+///     ) -> TypeAndLifetime<'a, 'b, T>
+///     where '__long: 'a, T: Clone + 'static
+///     {
+///         v
+///     }
+///     fn contravariant_wrt_b<'__short, 'a, 'b, T>(
+///         v: TypeAndLifetime<'a, '__short, T>,
+///     ) -> TypeAndLifetime<'a, 'b, T>
+///     where 'b: '__short, T: Clone + 'static
+///     {
+///         v
+///     }
+/// }
+/// ```
+struct CheckFn<'a> {
+    type_name: &'a Ident,
+    func_name: Ident,
+    // generics and where clause for the function
+    func_generics: Generics,
+    // generics for the type in the func arg
+    arg_generics: Generics,
+    // return value generics
+    return_generics: TypeGenerics<'a>,
+}
+
+impl<'a> ToTokens for CheckFn<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let CheckFn {
+            type_name,
+            func_name,
+            func_generics,
+            arg_generics,
+            return_generics,
+        } = self;
+        let (func_generics, _, where_clause) = func_generics.split_for_impl();
+        let (_, arg_generics, _) = arg_generics.split_for_impl();
+        quote!(
+            fn #func_name #func_generics(
+                v: #type_name #arg_generics,
+            ) -> #type_name #return_generics #where_clause {
+                v
+            }
+        )
+        .to_tokens(tokens)
+    }
+}
+
+fn construct_check<'a>(
+    type_name: &'a Ident,
+    variance: &'a Variance,
+    generics: &'a Generics,
+) -> Option<CheckFn<'a>> {
+    let test_lt: Lifetime;
+    let func_name: String;
+    let where_pred: WherePredicate;
+
+    let lt = &variance.lifetime;
+    let lt_name = lt.ident.to_string();
+
+    match variance.kind {
+        VarianceKind::Inv(_) => return None,
+        VarianceKind::Co(_) => {
+            test_lt = Lifetime::new("'__long", Span::call_site());
+            func_name = format!("covariant_wrt_{lt_name}");
+            where_pred = parse_quote!(#test_lt: #lt)
+        }
+        VarianceKind::Contra(_) => {
+            test_lt = Lifetime::new("'__short", Span::call_site());
+            func_name = format!("contravariant_wrt_{lt_name}");
+            where_pred = parse_quote!(#lt: #test_lt)
+        }
+    }
+
+    // generics for the func; original with the test lifetime inserted
+    let func_generics = generics
+        .clone()
+        .insert_lifetime(0, LifetimeParam::new(test_lt.clone()))
+        .insert_where_predicate(where_pred);
+
+    // generics for the funcs argument; original with 'a replaced by 'test
+    let arg_generics = generics
+        .clone()
+        .swap_lifetime(&lt, LifetimeParam::new(test_lt))
+        .expect("lifetime not found");
+
+    // generics for the return value; same as original
+    let return_generics = generics.split_for_impl().1;
+
+    Some(CheckFn {
+        type_name,
+        func_name: Ident::new(&func_name, Span::call_site()),
+        func_generics,
+        arg_generics,
+        return_generics,
+    })
+}
+
+trait GenericsTransform: Sized + 'static {
+    fn insert_where_predicate(self, pred: WherePredicate) -> Generics;
+    fn swap_lifetime(self, old: &Lifetime, new: LifetimeParam) -> Option<Generics>;
+    fn insert_lifetime(self, index: usize, new: LifetimeParam) -> Generics;
+}
+
+impl GenericsTransform for Generics {
+    fn insert_where_predicate(mut self, pred: WherePredicate) -> Generics {
+        self.make_where_clause().predicates.push(pred);
+        self
+    }
+
+    fn swap_lifetime(mut self, old: &Lifetime, new: LifetimeParam) -> Option<Generics> {
+        self.lifetimes_mut()
+            .find(|lt| lt.lifetime.eq(old))
+            .map(|lt| *lt = new)?;
+        Some(self)
+    }
+
+    fn insert_lifetime(mut self, index: usize, new: LifetimeParam) -> Generics {
+        self.params.insert(index, GenericParam::Lifetime(new));
+        self
     }
 }
