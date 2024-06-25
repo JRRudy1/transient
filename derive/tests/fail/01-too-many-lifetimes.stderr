@@ -1,5 +1,5 @@
-error: At most one lifetime parameter is allowed!
- --> tests/fail/01-too-many-lifetimes.rs:6:14
+error: At most 4 lifetime parameters are allowed!
+ --> tests/fail/01-too-many-lifetimes.rs:5:26
   |
-6 | struct S<'a, 'b, T> {
-  |              ^^
+5 | struct S<'a, 'b, 'c, 'd, 'e, T> {
+  |                          ^^

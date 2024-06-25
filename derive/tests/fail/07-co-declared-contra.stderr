@@ -1,0 +1,12 @@
+error: lifetime may not live long enough
+ --> tests/fail/07-co-declared-contra.rs:3:10
+  |
+3 | #[derive(Transient)]
+  |          ^^^^^^^^^ function was supposed to return data with lifetime `'a` but it is returning data with lifetime `'__short`
+4 | #[contravariant(a)]
+  |   ------------- lifetime `'__short` defined here
+5 | struct CovariantType<'a, T> {
+  |                      -- lifetime `'a` defined here
+  |
+  = help: consider adding the following bound: `'__short: 'a`
+  = note: this error originates in the derive macro `Transient` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: cannot find attribute `cvariant` in this scope
+ --> tests/fail/03-unrecognized-variance.rs:5:3
+  |
+5 | #[cvariant(a)]
+  |   ^^^^^^^^ help: a derive helper attribute with a similar name exists: `covariant`

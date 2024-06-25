@@ -1,15 +1,15 @@
 //! Tests the behavior when used on structs with no type parameters
-use transient::{Transient, Any, Downcast, Contra, Inv};
+use transient::{Any, Contra, Downcast, Inv, Transient};
 
 #[derive(Debug, Transient)]
+#[contravariant(a)]
 struct FuncWrap<'a> {
-    #[variance(unsafe_contravariant)]
     func: fn(&'a str) -> &'static str,
 }
 
 #[derive(Debug, Transient)]
+#[contravariant(a)]
 struct _FuncWrap<'a> {
-    #[variance(unsafe_contra)]
     func: fn(&'a str) -> &'static str,
 }
 
@@ -29,7 +29,7 @@ fn main() {
     let temp_string = "temp_str".to_string();
 
     // `accepts_any` is `FuncWrap<'any>`
-    let accepts_any: FuncWrap<'_> = FuncWrap{func: use_any_str};
+    let accepts_any: FuncWrap<'_> = FuncWrap { func: use_any_str };
 
     // it can therefore be flexibly called with any string
     let _ = accepts_any.call(&temp_string);
@@ -40,8 +40,8 @@ fn main() {
     let erased: &dyn std::any::Any = &accepts_any;
     let restored: &FuncWrap<'_> = erased.downcast_ref().unwrap();
     let _ = restored.call(STATIC_STR); // OK
-    // but the next line would NOT compile:
-    //   let _ = restored.call(&temp_string); // Not OK
+                                       // but the next line would NOT compile:
+                                       //   let _ = restored.call(&temp_string); // Not OK
 
     // if we cast to `dyn transient::Any` instead, it can keep its `'any` lifetime
     // and keep accepting `&'short str` after being downcast
