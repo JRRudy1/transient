@@ -1,0 +1,26 @@
+error: lifetime may not live long enough
+ --> tests/fail/03-invalid-contravariant.rs:5:17
+  |
+5 | #[variance('a = contra)]
+  |                 ^^^^^^ function was supposed to return data with lifetime `'__test_lifetime` but it is returning data with lifetime `'a`
+6 | struct SsActualCoVariant<'a> {
+  |        ----------------- -- lifetime `'a` defined here
+  |        |
+  |        lifetime `'__test_lifetime` defined here
+  |
+  = help: consider adding the following bound: `'a: '__test_lifetime`
+
+error: lifetime may not live long enough
+  --> tests/fail/03-invalid-contravariant.rs:11:17
+   |
+11 | #[variance('a = contra)]
+   |                 ^^^^^^ function was supposed to return data with lifetime `'__test_lifetime` but it is returning data with lifetime `'a`
+12 | struct SsActualInvariant<'a> {
+   |        ----------------- -- lifetime `'a` defined here
+   |        |
+   |        lifetime `'__test_lifetime` defined here
+   |
+   = help: consider adding the following bound: `'a: '__test_lifetime`
+   = note: requirement occurs because of the type `SsActualInvariant<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `SsActualInvariant<'a>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
