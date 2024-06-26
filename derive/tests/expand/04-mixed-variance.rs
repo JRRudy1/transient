@@ -14,3 +14,10 @@ struct CoInv<'a, 'b, T1, T2> {
     value1: &'a T1,
     value2: *mut T2,
 }
+
+#[derive(Transient)]
+#[covariant]
+struct GlobalCo<'a, 'b, T1, T2> {
+    value1: &'a T1,
+    value2: &'b T2,
+}

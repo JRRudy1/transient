@@ -5,25 +5,30 @@ use transient_derive::Transient;
 struct ContraCo<'a, 'b, T> {
     value1: fn(&'a T) -> &'b str,
 }
-unsafe impl<'a, 'b, T: 'static> ::transient::Transient for ContraCo<'a, 'b, T> {
+unsafe impl<'a, 'b, T> ::transient::Transient for ContraCo<'a, 'b, T>
+where
+    T: 'static,
+{
     type Static = ContraCo<'static, 'static, T>;
     type Transience = (::transient::Contra<'a>, ::transient::Co<'b>);
 }
 #[allow(non_snake_case, dead_code)]
 mod __validate_ContraCo {
-    use super::*;
-    fn contravariant_wrt_a<'__short, 'a, 'b, T: 'static>(
+    use super::ContraCo;
+    fn contravariant_wrt_a<'__short, 'a, 'b, T>(
         v: ContraCo<'__short, 'b, T>,
     ) -> ContraCo<'a, 'b, T>
     where
+        T: 'static,
         'a: '__short,
     {
         v
     }
-    fn covariant_wrt_b<'__long, 'a, 'b, T: 'static>(
+    fn covariant_wrt_b<'__long, 'a, 'b, T>(
         v: ContraCo<'a, '__long, T>,
     ) -> ContraCo<'a, 'b, T>
     where
+        T: 'static,
         '__long: 'b,
     {
         v
@@ -34,18 +39,61 @@ struct CoInv<'a, 'b, T1, T2> {
     value1: &'a T1,
     value2: *mut T2,
 }
-unsafe impl<'a, 'b, T1: 'static, T2: 'static> ::transient::Transient for CoInv<'a, 'b, T1, T2> {
+unsafe impl<'a, 'b, T1, T2> ::transient::Transient for CoInv<'a, 'b, T1, T2>
+where
+    T1: 'static,
+    T2: 'static,
+{
     type Static = CoInv<'static, 'static, T1, T2>;
     type Transience = (::transient::Co<'a>, ::transient::Inv<'b>);
 }
 #[allow(non_snake_case, dead_code)]
 mod __validate_CoInv {
-    use super::*;
-    fn covariant_wrt_a<'__long, 'a, 'b, T1: 'static, T2: 'static>(
+    use super::CoInv;
+    fn covariant_wrt_a<'__long, 'a, 'b, T1, T2>(
         v: CoInv<'__long, 'b, T1, T2>,
     ) -> CoInv<'a, 'b, T1, T2>
     where
+        T1: 'static,
+        T2: 'static,
         '__long: 'a,
+    {
+        v
+    }
+}
+#[covariant]
+struct GlobalCo<'a, 'b, T1, T2> {
+    value1: &'a T1,
+    value2: &'b T2,
+}
+unsafe impl<'a, 'b, T1, T2> ::transient::Transient for GlobalCo<'a, 'b, T1, T2>
+where
+    T1: 'static,
+    T2: 'static,
+{
+    type Static = GlobalCo<'static, 'static, T1, T2>;
+    type Transience = (::transient::Co<'a>, ::transient::Co<'b>);
+}
+#[allow(non_snake_case, dead_code)]
+mod __validate_GlobalCo {
+    use super::GlobalCo;
+    fn covariant_wrt_a<'__long, 'a, 'b, T1, T2>(
+        v: GlobalCo<'__long, 'b, T1, T2>,
+    ) -> GlobalCo<'a, 'b, T1, T2>
+    where
+        T1: 'static,
+        T2: 'static,
+        '__long: 'a,
+    {
+        v
+    }
+    fn covariant_wrt_b<'__long, 'a, 'b, T1, T2>(
+        v: GlobalCo<'a, '__long, T1, T2>,
+    ) -> GlobalCo<'a, 'b, T1, T2>
+    where
+        T1: 'static,
+        T2: 'static,
+        '__long: 'b,
     {
         v
     }

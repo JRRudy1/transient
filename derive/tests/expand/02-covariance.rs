@@ -32,7 +32,7 @@ struct TypesAndLifetime<'a, T1, T2> {
 
 #[derive(Transient)]
 #[covariant(a, b)]
-struct TypesAndTwoLifetimes<'a, 'b, T1, T2> {
+struct TypesAndTwoLifetimes<'a, 'b, T1, T2: 'static> {
     value1: &'a T1,
     value2: &'a T2,
 }

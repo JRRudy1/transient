@@ -1,5 +1,5 @@
 error: lifetime may not live long enough
- --> tests/fail/07-co-declared-contra.rs:3:10
+ --> tests/fail/05-co-declared-contra.rs:3:10
   |
 3 | #[derive(Transient)]
   |          ^^^^^^^^^ function was supposed to return data with lifetime `'a` but it is returning data with lifetime `'__short`
