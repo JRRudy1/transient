@@ -8,9 +8,9 @@ unsafe impl<'a> ::transient::Transient for LifetimeOnly<'a> {
     type Static = LifetimeOnly<'static>;
     type Transience = ::transient::Contra<'a>;
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_LifetimeOnly {
-    use super::LifetimeOnly;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn contravariant_wrt_a<'__short, 'a>(v: LifetimeOnly<'__short>) -> LifetimeOnly<'a>
     where
         'a: '__short,
@@ -29,9 +29,9 @@ where
     type Static = TypeAndLifetime<'static, T>;
     type Transience = ::transient::Contra<'a>;
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_TypeAndLifetime {
-    use super::TypeAndLifetime;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn contravariant_wrt_a<'__short, 'a, T>(
         v: TypeAndLifetime<'__short, T>,
     ) -> TypeAndLifetime<'a, T>
@@ -54,9 +54,9 @@ where
     type Static = TypesAndLifetime<'static, T1, T2>;
     type Transience = ::transient::Contra<'a>;
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_TypesAndLifetime {
-    use super::TypesAndLifetime;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn contravariant_wrt_a<'__short, 'a, T1, T2>(
         v: TypesAndLifetime<'__short, T1, T2>,
     ) -> TypesAndLifetime<'a, T1, T2>
@@ -82,9 +82,9 @@ where
     type Static = TypesAndTwoLifetimes<'static, 'static, T1, T2>;
     type Transience = (::transient::Contra<'a>, ::transient::Contra<'b>);
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_TypesAndTwoLifetimes {
-    use super::TypesAndTwoLifetimes;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn contravariant_wrt_a<'__short, 'a, 'b, T1, T2>(
         v: TypesAndTwoLifetimes<'__short, 'b, T1, T2>,
     ) -> TypesAndTwoLifetimes<'a, 'b, T1, T2>

@@ -12,9 +12,9 @@ where
     type Static = ContraCo<'static, 'static, T>;
     type Transience = (::transient::Contra<'a>, ::transient::Co<'b>);
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_ContraCo {
-    use super::ContraCo;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn contravariant_wrt_a<'__short, 'a, 'b, T>(
         v: ContraCo<'__short, 'b, T>,
     ) -> ContraCo<'a, 'b, T>
@@ -47,9 +47,9 @@ where
     type Static = CoInv<'static, 'static, T1, T2>;
     type Transience = (::transient::Co<'a>, ::transient::Inv<'b>);
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_CoInv {
-    use super::CoInv;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn covariant_wrt_a<'__long, 'a, 'b, T1, T2>(
         v: CoInv<'__long, 'b, T1, T2>,
     ) -> CoInv<'a, 'b, T1, T2>
@@ -74,9 +74,9 @@ where
     type Static = GlobalCo<'static, 'static, T1, T2>;
     type Transience = (::transient::Co<'a>, ::transient::Co<'b>);
 }
-#[allow(non_snake_case, dead_code)]
 mod __validate_GlobalCo {
-    use super::GlobalCo;
+    #![allow(non_snake_case, dead_code)]
+    use super::*;
     fn covariant_wrt_a<'__long, 'a, 'b, T1, T2>(
         v: GlobalCo<'__long, 'b, T1, T2>,
     ) -> GlobalCo<'a, 'b, T1, T2>
