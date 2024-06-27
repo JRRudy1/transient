@@ -241,6 +241,7 @@ impl SelfType {
         Ok(Transience(variances))
     }
 }
+
 impl ToTokens for SelfType {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { name, generics, .. } = self;
@@ -248,13 +249,6 @@ impl ToTokens for SelfType {
         quote!(#name #type_generics).to_tokens(tokens);
     }
 }
-
-/*impl<'a> Deref for SelfType<'a> {
-    type Target = TypeWithGenerics<'a>;
-    fn deref(&self) -> &Self::Target {
-        &self.type_
-    }
-}*/
 
 /// The `Transient::Static` associated type
 type StaticType<'a> = TypeWithGenerics<'a>;
