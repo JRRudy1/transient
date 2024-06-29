@@ -22,7 +22,7 @@ struct TypeAndLifetime<'a, T> {
 }
 
 #[derive(Transient)]
-struct TypesAndLifetime<'a, T1, T2> {
+struct TypesAndLifetime<'a, T1, T2: 'static> {
     value1: &'a T1,
     value2: T2,
 }

@@ -1,0 +1,17 @@
+error: Duplicate variance specification! 'covariant' replaced by 'contravariant'
+ --> tests/fail/07-duplicate-variances.rs:5:3
+  |
+5 | #[contravariant(a)]
+  |   ^^^^^^^^^^^^^
+
+error: Duplicate variance specification! 'covariant' replaced by 'contravariant'
+  --> tests/fail/07-duplicate-variances.rs:12:3
+   |
+12 | #[contravariant(a)]
+   |   ^^^^^^^^^^^^^
+
+error: Duplicate variance specification! 'covariant' replaced by 'covariant'
+  --> tests/fail/07-duplicate-variances.rs:18:3
+   |
+18 | #[covariant(a, a)]
+   |   ^^^^^^^^^

@@ -1,0 +1,5 @@
+error: Variance declared for an invalid lifetime `'a`!
+ --> tests/fail/02-unrecognized-lifetime.rs:5:13
+  |
+5 | #[covariant(a)]
+  |             ^
