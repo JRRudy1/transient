@@ -24,6 +24,7 @@ transient-derive = { path = "derive", version = "0.3", optional = true }
 ndarray = { version = "0.15", optional = true }
 numpy = { version = "0.21", optional = true }
 pyo3 = { version = ">=0.21", optional = true }
+uuid = { version = "1", optional = true }
 
 [dev-dependencies]
 trybuild = { version = "1.0.49", features = ["diff"] }
@@ -42,6 +43,7 @@ pyo3 = ["dep:pyo3"]
 
 # Provides `Transient` implementations for `numpy` types
 numpy = ["dep:numpy", "ndarray", "pyo3"]
+uuid = ["dep:uuid"]
 
 [workspace.lints.clippy]
 let_unit_value = "warn"

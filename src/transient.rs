@@ -370,7 +370,12 @@ mod std_impls {
 
     use std::any::Any as StdAny;
     use std::borrow::{Cow, ToOwned};
+    use std::char::ParseCharError;
     use std::collections::HashMap;
+    use std::net::AddrParseError;
+    use std::num::{ParseFloatError, ParseIntError};
+    use std::str::ParseBoolError;
+    use std::string::ParseError;
 
     macro_rules! impl_refs {
         {
@@ -431,7 +436,10 @@ mod std_impls {
     impl_primatives! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
-        f32, f64, String, Box<str>, ()
+        f32, f64, String, Box<str>, (),
+        ParseIntError, ParseCharError,
+        ParseFloatError, ParseBoolError,
+        ParseError, AddrParseError,
     }
 
     unsafe impl<'a> Transient for &'a str {
@@ -439,6 +447,7 @@ mod std_impls {
         type Transience = Co<'a>;
     }
     impl_refs!(&'a str ['a]);
+    impl Static for str {}
 
     unsafe impl<'a, T: Transient> Transient for &'a [T] {
         type Static = &'static [T::Static];
@@ -595,4 +604,14 @@ mod numpy_impls {
         type Static = PyReadwriteArray<'static, T, D>;
         type Transience = crate::Co<'py>;
     }
+}
+
+#[cfg(feature = "uuid")]
+mod uuid_impls {
+    use super::Static;
+    use uuid::*;
+    impl Static for Uuid {}
+    impl Static for Error {}
+    impl Static for Variant {}
+    impl Static for Version {}
 }
