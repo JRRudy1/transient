@@ -324,6 +324,9 @@ pub use crate::transient::{Static, Transient};
 #[doc(inline)]
 pub use transience::{Co, Contra, Inv, Timeless, Transience};
 
+#[doc(inline)]
+pub use transience::{Contravariant, Covariant, Invariant, Lifetime};
+
 pub use transience::{CanRecoverFrom, CanTranscendTo};
 
 #[cfg(feature = "derive")]

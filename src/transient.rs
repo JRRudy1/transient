@@ -487,6 +487,11 @@ mod std_impls {
         type Transience = T::Transience;
     }
 
+    unsafe impl<T: Transient> Transient for std::marker::PhantomData<T> {
+        type Static = std::marker::PhantomData<T::Static>;
+        type Transience = T::Transience;
+    }
+
     impl Static for Box<dyn StdAny> {}
 
     unsafe impl<'a> Transient for &'a dyn StdAny {
