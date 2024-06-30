@@ -5,6 +5,11 @@
 use crate::tr::Transient;
 use std::marker::PhantomData;
 
+use sealed::Sealed;
+mod sealed {
+    pub trait Sealed {}
+}
+
 /// Marker trait for types used to establish the [variance] of a type with
 /// respect to each of its lifetime parameters, including [`Co`], [`Contra`],
 /// [`Inv`], [`Timeless`], and tuples combining them.
@@ -14,7 +19,7 @@ use std::marker::PhantomData;
 /// undefined behavior if chosen incorrectly. To override this default, the
 /// [`Transience` associated type] can be set in the type's `Transient`
 /// implementation; if using the derive macro, this corresponds to including
-/// the `#[r#unsafe(covariant)]` attribute.
+/// the `#[covariant]` or `#[contravariant]` attribute.
 ///
 /// To maximize the flexibility of this crate's functionality, transitions
 /// between compatible `Transiences` are supported. See the documentation for
@@ -34,7 +39,7 @@ use std::marker::PhantomData;
 /// next section):
 ///
 /// <table style="width:80%">
-///   <tr style="font-size: 12px;">
+///   <tr style="font-size: 12px;background-color:white">
 ///     <th style="width:1%;"> </th>
 ///     <th> <code>Inv&lt'short&gt</code> </th>
 ///     <th> <code>Inv&lt'long&gt</code> </th>
@@ -122,24 +127,21 @@ use std::marker::PhantomData;
 /// For example, a type `&'long i32` with a transience of `Co<'long>` (middle row)
 /// can be safely erased to the trait object `dyn Any<Co<'short>>` (3rd column) by
 /// shortening its lifetime. However, when we want to
-/// [`downcast`] the opaque trait object back into its concrete type, we _cannot_ just
-/// assume (at least under the implementation of this crate) that we can safely recover
-/// a `'long` lifetime from the `'short` lifetime of the trait object;
-/// instead, we can only safely recover `&'short i32` from the `dyn Any<Co<'short>>`.
-/// As a result, even though the underlying reference should actually be valid for the
-/// `'long` lifetime, we end up with a reference that the borrow-checker only believes
-/// to be valid for the `'short` lifetime. This may seem silly if you happen to be
-/// dealing with a case where _you know_ what you are working with and that the
-/// `'long` lifetime _is_ valid; but the whole point of type-erasure is that
-/// sometimes you _dont_ know/care, or you don't want to compiler to know/care,
-/// and sometimes ignorance has a cost. On the bright side, if you _really are_
-/// confident that `'long` is valid, you can `unsafe`-ly fix it using hacks like
-/// [`std::mem::transmute`] and raw pointer casts (at your own risk, of course).
+/// [`downcast`] the opaque trait object back into its concrete type, we _cannot_
+/// assume that we can safely recover
+/// a `'long` lifetime from the `'short` lifetime of the trait object. The only truly
+/// safe solution is to avoid downcasting to a shorter lifetime - just as if you were
+/// working with references to the type itself.
 ///
 /// [`Transience` associated type]: Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [`downcast`]: crate::Downcast::downcast
-pub trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> {}
+pub trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> + Sealed {
+    /// The inverse of this transience. `Co` <=> `Contra`, and `Inv` <=> `Inv`.
+    type Inverse;
+    /// The invariant version of this transience. `Co`, `Contra` => `Inv`.
+    type Invariant;
+}
 
 /// Unsafe marker trait indicating that the implementing [`Transience`] can
 /// safely upcast to the parameterizing `Transience`.
@@ -237,12 +239,16 @@ pub unsafe trait CanRecoverFrom<From> {}
 /// this transience by default so that it can mimic the simplicity of the
 /// [`std::any::Any`] trait in the simple case of `'static` types.
 pub type Timeless = ();
-impl Transience for Timeless {}
+impl Sealed for Timeless {}
+impl Transience for Timeless {
+    type Inverse = ();
+    type Invariant = ();
+}
 
 /// Used to declare an [_invariant_] relationship between a type and its lifetime
 /// parameter.
 ///
-/// An *invariant* type is one for which the compiler cannot safely assume that
+/// An [_invariant_] type is one for which the compiler cannot safely assume that
 /// its lifetime may be shortened *or* lengthened (e.g. `'b` in `&'a mut &'b T`).
 /// Such a type must therefore match the expected lifetime exactly when passed to
 /// a function.
@@ -252,20 +258,24 @@ impl Transience for Timeless {}
 /// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
+impl Sealed for Inv<'_> {}
 
-impl<'a> Transience for Inv<'a> {}
+impl<'a> Transience for Inv<'a> {
+    type Inverse = Inv<'a>;
+    type Invariant = Inv<'a>;
+}
 
 unsafe impl<'a> Transient for Inv<'a> {
     type Static = Inv<'static>;
     type Transience = Self;
 }
 
-/// Used to declare an [_covariant_] relationship between a type and its lifetime
+/// Used to declare a [_covariant_] relationship between a type and its lifetime
 /// parameter.
 ///
-/// A *covariant* type is one for which the compiler can safely *shorten* its
+/// A [_covariant_] type is one for which the compiler can safely *shorten* its
 /// lifetime parameter as needed when passing it to a function; for example,
-/// `&'a T` is *covariant* w.r.t. `'a`, so `&'static str` can be used where
+/// `&'a T` is *covariant* w.r.t. `'a`, so `&'long str` can be used where
 /// `&'short str` is expected.
 ///
 /// See the [`Transience`] documentation for more information.
@@ -273,29 +283,37 @@ unsafe impl<'a> Transient for Inv<'a> {
 /// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Co<'a>(PhantomData<&'a ()>);
+impl Sealed for Co<'_> {}
 
-impl<'a> Transience for Co<'a> {}
+impl<'a> Transience for Co<'a> {
+    type Inverse = Contra<'a>;
+    type Invariant = Inv<'a>;
+}
 
 unsafe impl<'a> Transient for Co<'a> {
     type Static = Co<'static>;
     type Transience = Self;
 }
 
-/// Used to declare an [_contravariant_] relationship between a type and its lifetime
+/// Used to declare a [_contravariant_] relationship between a type and its lifetime
 /// parameter.
 ///
-/// A *contravariant* type is one for which the compiler can safely *lengthen*
+/// A [_contravariant_] type is one for which the compiler can safely *lengthen*
 /// its lifetime parameter as needed when passing it to a function; for example,
 /// `fn(&'a str)` is *contravariant* w.r.t. `'a`, so `fn(&'short str)` can be
-/// used where `fn(&'static str)` is expected.
+/// used where `fn(&'long str)` is expected.
 ///
 /// See the [`Transience`] documentation for more information.
 ///
 /// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Contra<'a>(PhantomData<fn(&'a ())>);
+impl Sealed for Contra<'_> {}
 
-impl<'a> Transience for Contra<'a> {}
+impl<'a> Transience for Contra<'a> {
+    type Inverse = Co<'a>;
+    type Invariant = Inv<'a>;
+}
 
 unsafe impl<'a> Transient for Contra<'a> {
     type Static = Contra<'static>;
@@ -413,10 +431,17 @@ impl_scalar_to_tuples! {
 macro_rules! impl_equal_tuples {
     { $( ($($src:ident,)*) => ($($dst:ident,)*) );* $(;)? } => {
         $(
-        impl<$($src),*> Transience for ($($src),*,)
+        impl<$($src),*> Sealed for ($($src),*,)
         where
             $( $src: Transience ),*
         {}
+        impl<$($src),*> Transience for ($($src),*,)
+        where
+            $( $src: Transience ),*
+        {
+            type Inverse = ($(<$src as Transience>::Inverse),*,);
+            type Invariant = ($(<$src as Transience>::Invariant),*,);
+        }
         unsafe impl<$($src),*> Transient for ($($src),*,)
         where
             $( $src: Transience ),*
