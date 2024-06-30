@@ -340,7 +340,7 @@ pub unsafe trait Transient: Sized {
 /// Implementing this trait results in a `Transient` implementation using `Self`
 /// as the `Static` type and `()` as the `Transience`, which is almost certainly
 /// what a `'static` type would want.
-pub trait Static: 'static {}
+pub trait Static: 'static + Sized {}
 
 unsafe impl<S: Static> Transient for S {
     type Static = Self;
@@ -448,7 +448,6 @@ mod std_impls {
         type Transience = Co<'a>;
     }
     impl_refs!(&'a str ['a]);
-    impl Static for str {}
 
     unsafe impl<'a, T: Transient> Transient for &'a [T] {
         type Static = &'static [T::Static];
