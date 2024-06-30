@@ -366,7 +366,7 @@ const fn check_static_type<T: Transient>() {
 
 mod std_impls {
     use super::{Static, Transient};
-    use crate::{Co, Inv};
+    use crate::{Co, Inv, Covariant, Invariant};
 
     use std::any::Any as StdAny;
     use std::borrow::{Cow, ToOwned};
@@ -449,47 +449,77 @@ mod std_impls {
     }
     impl_refs!(&'a str ['a]);
 
-    unsafe impl<'a, T: Transient> Transient for &'a [T] {
-        type Static = &'static [T::Static];
+    unsafe impl<'a> Transient for &'a mut str {
+        type Static = &'static mut str;
         type Transience = Co<'a>;
     }
-    impl_refs!(&'a [T] ['a, T: Transient]);
+    impl_refs!(&'a mut str ['a]);
+
+    unsafe impl<'a, T: Transient> Transient for &'a [T] {
+        type Static = &'static [T::Static];
+        type Transience = (Co<'a>, Covariant<T>);
+    }
+    impl_refs!(&'a [T] ['a, T: Transient] (Co<'a>, Covariant<T>));
+
+    unsafe impl<'a, T: Transient> Transient for &'a mut [T] {
+        type Static = &'static mut [T::Static];
+        type Transience = (Co<'a>, Invariant<T>);
+    }
+    impl_refs!(&'a mut [T] ['a, T: Transient] (Co<'a>, Invariant<T>));
 
     unsafe impl<T: Transient> Transient for Vec<T> {
         type Static = Vec<T::Static>;
-        type Transience = T::Transience;
+        type Transience = Covariant<T>;
     }
-    impl_refs! { Vec<T> [T: Transient] (T::Transience) }
+    impl_refs!(Vec<T> [T: Transient] (Covariant<T>));
 
     unsafe impl<K: Transient, V: Transient> Transient for HashMap<K, V> {
         type Static = HashMap<K::Static, V::Static>;
-        type Transience = (K::Transience, V::Transience);
+        type Transience = (Covariant<K>, Covariant<V>);
     }
-    impl_refs!(HashMap<K, V> [K: Transient, V: Transient] (K::Transience, V::Transience));
+    impl_refs!(HashMap<K, V> [K: Transient, V: Transient] (Covariant<K>, Covariant<V>));
 
     unsafe impl<T: Transient> Transient for Box<[T]> {
         type Static = Box<[T::Static]>;
-        type Transience = T::Transience;
+        type Transience = Covariant<T>;
     }
+
     unsafe impl<'a, T: Transient + ToOwned> Transient for Cow<'a, T>
     where
         T::Static: ToOwned,
     {
         type Static = Cow<'static, T::Static>;
-        type Transience = (Co<'a>, T::Transience);
+        type Transience = (Co<'a>, Covariant<T>);
     }
+
     unsafe impl<T: Transient> Transient for Option<T> {
         type Static = Option<T::Static>;
-        type Transience = T::Transience;
+        type Transience = Covariant<T>;
     }
+
     unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
         type Static = Result<T::Static, E>;
-        type Transience = T::Transience;
+        type Transience = Covariant<T>;
     }
 
     unsafe impl<T: Transient> Transient for std::marker::PhantomData<T> {
         type Static = std::marker::PhantomData<T::Static>;
-        type Transience = T::Transience;
+        type Transience = Covariant<T>;
+    }
+
+    unsafe impl<T: Transient> Transient for std::cell::Cell<T> {
+        type Static = std::marker::PhantomData<T::Static>;
+        type Transience = Invariant<T>;
+    }
+
+    unsafe impl<T: Transient> Transient for *const T {
+        type Static = *const T::Static;
+        type Transience = Covariant<T>;
+    }
+
+    unsafe impl<T: Transient> Transient for *mut T {
+        type Static = *mut T::Static;
+        type Transience = Invariant<T>;
     }
 
     impl Static for Box<dyn StdAny> {}
@@ -498,6 +528,7 @@ mod std_impls {
         type Static = &'static dyn StdAny;
         type Transience = Co<'a>;
     }
+
     unsafe impl<'a> Transient for &'a mut dyn StdAny {
         type Static = &'static mut dyn StdAny;
         type Transience = Co<'a>;
