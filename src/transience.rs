@@ -5,11 +5,6 @@
 use crate::tr::Transient;
 use std::marker::PhantomData;
 
-use sealed::Sealed;
-mod sealed {
-    pub trait Sealed {}
-}
-
 /// Marker trait for types used to establish the [variance] of a type with
 /// respect to each of its lifetime parameters, including [`Co`], [`Contra`],
 /// [`Inv`], [`Timeless`], and tuples combining them.
@@ -26,7 +21,6 @@ mod sealed {
 /// the [`CanTranscendTo`] and[ `CanRecoverFrom`] traits for an introduction
 /// to these transitions and when they are used, as well as a discussion of
 /// why certain transitions are allowed while others are forbidden.
-///
 ///
 /// ## Valid transitions table
 /// The following table summarizes the allowable transitions that can be
@@ -133,10 +127,18 @@ mod sealed {
 /// safe solution is to avoid downcasting to a shorter lifetime - just as if you were
 /// working with references to the type itself.
 ///
+/// # Safety
+/// The `Inverse` associated types must be defined appropriately to reflect the 
+/// _opposite_ variance behavior with respect to the same lifetime parameter(s).
+/// Similarly, the `Invariant` associated type must be defined as an _invariant_
+/// behavior with respect to the same lifetime parameter(s). Note the this does 
+/// _not_ apply to the `Timeless` type, which has no lifetime relationships and 
+/// may thus use `Timeless` for both associated types.
+/// 
 /// [`Transience` associated type]: Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [`downcast`]: crate::Downcast::downcast
-pub trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> + Sealed {
+pub unsafe trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> {
     /// The inverse of this transience. `Co` <=> `Contra`, and `Inv` <=> `Inv`.
     type Inverse;
     /// The invariant version of this transience. `Co`, `Contra` => `Inv`.
@@ -239,8 +241,8 @@ pub unsafe trait CanRecoverFrom<From> {}
 /// this transience by default so that it can mimic the simplicity of the
 /// [`std::any::Any`] trait in the simple case of `'static` types.
 pub type Timeless = ();
-impl Sealed for Timeless {}
-impl Transience for Timeless {
+
+unsafe impl Transience for Timeless {
     type Inverse = ();
     type Invariant = ();
 }
@@ -258,9 +260,8 @@ impl Transience for Timeless {
 /// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Inv<'a>(PhantomData<fn(&'a ()) -> &'a ()>);
-impl Sealed for Inv<'_> {}
 
-impl<'a> Transience for Inv<'a> {
+unsafe impl<'a> Transience for Inv<'a> {
     type Inverse = Inv<'a>;
     type Invariant = Inv<'a>;
 }
@@ -283,9 +284,8 @@ unsafe impl<'a> Transient for Inv<'a> {
 /// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Co<'a>(PhantomData<&'a ()>);
-impl Sealed for Co<'_> {}
 
-impl<'a> Transience for Co<'a> {
+unsafe impl<'a> Transience for Co<'a> {
     type Inverse = Contra<'a>;
     type Invariant = Inv<'a>;
 }
@@ -308,9 +308,8 @@ unsafe impl<'a> Transient for Co<'a> {
 /// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 #[derive(Clone, Copy, Debug)]
 pub struct Contra<'a>(PhantomData<fn(&'a ())>);
-impl Sealed for Contra<'_> {}
 
-impl<'a> Transience for Contra<'a> {
+unsafe impl<'a> Transience for Contra<'a> {
     type Inverse = Co<'a>;
     type Invariant = Inv<'a>;
 }
@@ -525,11 +524,7 @@ impl_scalar_to_tuples! {
 macro_rules! impl_equal_tuples {
     { $( ($($src:ident,)*) => ($($dst:ident,)*) );* $(;)? } => {
         $(
-        impl<$($src),*> Sealed for ($($src),*,)
-        where
-            $( $src: Transience ),*
-        {}
-        impl<$($src),*> Transience for ($($src),*,)
+        unsafe impl<$($src),*> Transience for ($($src),*,)
         where
             $( $src: Transience ),*
         {
