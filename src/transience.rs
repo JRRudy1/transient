@@ -128,17 +128,19 @@ use std::marker::PhantomData;
 /// working with references to the type itself.
 ///
 /// # Safety
-/// The `Inverse` associated types must be defined appropriately to reflect the 
+/// The `Inverse` associated types must be defined appropriately to reflect the
 /// _opposite_ variance behavior with respect to the same lifetime parameter(s).
 /// Similarly, the `Invariant` associated type must be defined as an _invariant_
-/// behavior with respect to the same lifetime parameter(s). Note the this does 
-/// _not_ apply to the `Timeless` type, which has no lifetime relationships and 
+/// behavior with respect to the same lifetime parameter(s). Note the this does
+/// _not_ apply to the `Timeless` type, which has no lifetime relationships and
 /// may thus use `Timeless` for both associated types.
-/// 
+///
 /// [`Transience` associated type]: Transient::Transience
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 /// [`downcast`]: crate::Downcast::downcast
-pub unsafe trait Transience: Transient + CanTranscendTo<Self> + CanRecoverFrom<Self> {
+pub unsafe trait Transience:
+    Transient + CanTranscendTo<Self> + CanRecoverFrom<Self>
+{
     /// The inverse of this transience. `Co` <=> `Contra`, and `Inv` <=> `Inv`.
     type Inverse;
     /// The invariant version of this transience. `Co`, `Contra` => `Inv`.
@@ -319,34 +321,34 @@ unsafe impl<'a> Transient for Contra<'a> {
     type Transience = Self;
 }
 
-/// Type alias that can be used in the [`Transience`] of a type to declare that it is 
+/// Type alias that can be used in the [`Transience`] of a type to declare that it is
 /// [_covariant_] with respect to a [`Transient`] type parameter.
-/// 
-/// This is analogous to the [`Co<'a>`][Co] type that is used to declare a covariant 
+///
+/// This is analogous to the [`Co<'a>`][Co] type that is used to declare a covariant
 /// relationship with respect to a lifetime parameter.
-/// 
-/// As discussed in its safety docs, the [`Transient`] trait requires an implementing 
+///
+/// As discussed in its safety docs, the [`Transient`] trait requires an implementing
 /// type to declare its temporal relationships in the [`Transience` associated type].
 /// This most naturally refers to its variance with respect to its _lifetime_ parameters,
 /// but it is _critical_ to account for that of its _type_ parameters as well when they
 /// are allowed to be non-`'static`. This type, as well as the related [`Invariant`] and
-/// [`Contravariant`] types, may be used to declare the variance of this  relationship 
+/// [`Contravariant`] types, may be used to declare the variance of this  relationship
 /// by using it, or a tuple including it, as the `Transience`.
-/// 
+///
 /// # Example
-/// Consider the following type, which is _covariant_ with respect to both the 
+/// Consider the following type, which is _covariant_ with respect to both the
 /// lifetime parameter `'a` and the type parameter `T`:
 /// ```
 /// struct S<'a, T>(&'a [T]);
 /// ```
-/// 
-/// If we wanted to provide a `Transient` implementation for this type that allows 
-/// the type parameter to be non-`'static`, we can use this `Covariant<T>` type 
+///
+/// If we wanted to provide a `Transient` implementation for this type that allows
+/// the type parameter to be non-`'static`, we can use this `Covariant<T>` type
 /// alias as a component in the `Transience` associated type:
 /// ```
-/// # struct S<'a, T>(&'a [T]); 
+/// # struct S<'a, T>(&'a [T]);
 /// use transient::{Transient, Co, Covariant};
-/// 
+///
 /// unsafe impl<'a, T> Transient for S<'a, T>
 /// where
 ///     T: Transient
@@ -355,61 +357,61 @@ unsafe impl<'a> Transient for Contra<'a> {
 ///     type Transience = (Co<'a>, Covariant<T>);
 /// }
 /// ```
-/// 
-/// When a concrete type of `&'b i32` is substituted for `T`, this impl expands to 
-/// the following which properly accounts for the lifetime `'a`, as well as the 
+///
+/// When a concrete type of `&'b i32` is substituted for `T`, this impl expands to
+/// the following which properly accounts for the lifetime `'a`, as well as the
 /// lifetime `'b` that was hidden inside of the generic parameter `T`:
 /// ```
-/// # struct S<'a, T>(&'a [T]); 
+/// # struct S<'a, T>(&'a [T]);
 /// # use transient::{Transient, Co, Covariant};
 /// unsafe impl<'a, 'b> Transient for S<'a, &'b i32> {
 ///     type Static = S<'static, &'static i32>;
 ///     type Transience = (Co<'a>, Co<'b>);
 /// }
 /// ```
-/// 
+///
 /// [`Static` associated type]: Transient::Transience
 /// [`Transience` associated type]: Transient::Transience
 /// [_covariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub type Covariant<T> = <T as Transient>::Transience;
 
-/// Type alias that can be used in the [`Transience`] of a type to declare that it is 
+/// Type alias that can be used in the [`Transience`] of a type to declare that it is
 /// [_contravariant_] with respect to a [`Transient`] type parameter.
-/// 
-/// This is analogous to the [`Contra<'a>`][Contra] type that is used to declare a 
+///
+/// This is analogous to the [`Contra<'a>`][Contra] type that is used to declare a
 /// contravariant relationship with respect to a lifetime parameter.
 ///
 /// See the [`Covariant`] type for more information, including a usage example.
-/// 
+///
 /// [_contravariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub type Contravariant<T> = <<T as Transient>::Transience as Transience>::Inverse;
 
-/// Type alias that can be used in the [`Transience`] of a type to declare that it is 
+/// Type alias that can be used in the [`Transience`] of a type to declare that it is
 /// [_invariant_] with respect to a [`Transient`] type parameter.
-/// 
-/// This is analogous to the [`Inv<'a>`][Inv] type that is used to declare an invariant 
+///
+/// This is analogous to the [`Inv<'a>`][Inv] type that is used to declare an invariant
 /// relationship with respect to a lifetime parameter.
-/// 
+///
 /// See the [`Covariant`] type for more information, including a usage example.
-/// 
+///
 /// [_invariant_]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub type Invariant<T> = <<T as Transient>::Transience as Transience>::Invariant;
 
 /// Type alias that can be nested within the [`Covariant`], [`Contravariant`], or
 /// [`Invariant`] type to declare the [_variance_] of a [`Transient`] struct with
 /// respect to a lifetime parameter.
-/// 
-/// Using this type is purely for aesthetics, and reduces to one of the fundamental 
+///
+/// Using this type is purely for aesthetics, and reduces to one of the fundamental
 /// [`Transience`] types:
-/// 
+///
 /// - `Covariant<Lifetime<'a>>` is equivalent to [`Co<'a>`]
 /// - `Contravariant<Lifetime<'a>>` is equivalent to [`Contra<'a>`]
 /// - `Invariant<Lifetime<'a>>` is equivalent to [`Inv<'a>`]
-/// 
+///
 /// Using `Co`, `Contra`, or `Inv` directly should usually be preferred, but some users
 /// may find that this type increases clarity when use alongside type parameter variances
-/// such as in the `Transience` tuple `(Covariant<Lifetime<'a>>, Covariant<T>>)` 
-/// 
+/// such as in the `Transience` tuple `(Covariant<Lifetime<'a>>, Covariant<T>>)`
+///
 /// [_variance_]: https://doc.rust-lang.org/nomicon/subtyping.html
 pub type Lifetime<'a> = PhantomData<&'a ()>;
 
