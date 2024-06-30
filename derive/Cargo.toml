@@ -1,6 +1,6 @@
 [package]
 name = "transient-derive"
-version = "0.3.0"
+version = "0.4.0"
 description = "Proc macro for deriving the `transient::Transient` trait"
 authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
 keywords = ["any", "static", "downcast", "typeid"]
