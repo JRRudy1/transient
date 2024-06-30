@@ -366,7 +366,7 @@ const fn check_static_type<T: Transient>() {
 
 mod std_impls {
     use super::{Static, Transient};
-    use crate::{Co, Inv, Covariant, Invariant};
+    use crate::{Co, Covariant, Inv, Invariant};
 
     use std::any::Any as StdAny;
     use std::borrow::{Cow, ToOwned};
