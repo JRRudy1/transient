@@ -142,9 +142,9 @@ pub unsafe trait Transience:
     Transient + CanTranscendTo<Self> + CanRecoverFrom<Self>
 {
     /// The inverse of this transience. `Co` <=> `Contra`, and `Inv` <=> `Inv`.
-    type Inverse;
+    type Inverse: Transience;
     /// The invariant version of this transience. `Co`, `Contra` => `Inv`.
-    type Invariant;
+    type Invariant: Transience;
 }
 
 /// Unsafe marker trait indicating that the implementing [`Transience`] can
