@@ -424,7 +424,7 @@ mod std_impls {
         }
     }
 
-    macro_rules! impl_primatives {
+    macro_rules! impl_static {
         ( $($ty:ty),* $(,)? ) => {
             $(
             impl Static for $ty {}
@@ -433,13 +433,14 @@ mod std_impls {
         }
     }
 
-    impl_primatives! {
+    impl_static! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
         f32, f64, String, Box<str>, (),
         ParseIntError, ParseCharError,
         ParseFloatError, ParseBoolError,
         ParseError, AddrParseError,
+        std::io::Error,
     }
 
     unsafe impl<'a> Transient for &'a str {
