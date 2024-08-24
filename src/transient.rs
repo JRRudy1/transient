@@ -654,6 +654,7 @@ mod uuid_impls {
 
 #[cfg(feature = "either")]
 mod either_impls {
+    use crate::Covariant;
     use either::Either;
 
     unsafe impl<L, R> crate::Transient for Either<L, R>
@@ -662,18 +663,6 @@ mod either_impls {
         R: crate::Transient,
     {
         type Static = Either<L::Static, R::Static>;
-        type Transience = (L::Transience, R::Transience);
+        type Transience = (Covariant<L>, Covariant<R>);
     }
-
-    // TODO: this doesn't handle certain cases - (Co<'a>, Contra<'a>) can't be converted to Inv<'a>,
-    // even though this should be supported
-    // #[test]
-    // fn test_either() {
-    //     let a = Either::Left("");
-    //     fn is_co<'a>(_b: &dyn crate::Any<crate::Inv<'a>>) {}
-    //     fn take<'a>(a: Either<&'a str, fn(&'a str)>) {
-    //         is_co(&a)
-    //     }
-    //     take(a);
-    // }
 }
