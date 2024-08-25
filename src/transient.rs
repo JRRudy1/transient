@@ -651,3 +651,18 @@ mod uuid_impls {
     impl Static for Variant {}
     impl Static for Version {}
 }
+
+#[cfg(feature = "either")]
+mod either_impls {
+    use crate::Covariant;
+    use either::Either;
+
+    unsafe impl<L, R> crate::Transient for Either<L, R>
+    where
+        L: crate::Transient,
+        R: crate::Transient,
+    {
+        type Static = Either<L::Static, R::Static>;
+        type Transience = (Covariant<L>, Covariant<R>);
+    }
+}
