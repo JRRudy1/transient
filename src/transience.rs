@@ -478,6 +478,16 @@ macro_rules! impl_scalar_to_tuples {
             where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2>
                       + CanRecoverFrom<R3> + CanRecoverFrom<R4> {}
 
+        // scalar => 5-tuple* => scalar
+        unsafe impl<'a, R1, R2, R3, R4, R5> CanTranscendTo<(R1, R2, R3, R4, R5)> for $typ
+            where $typ: CanTranscendTo<R1> + CanTranscendTo<R2>
+                      + CanTranscendTo<R3> + CanTranscendTo<R4>
+                      + CanTranscendTo<R5> {}
+        unsafe impl<'a, R1, R2, R3, R4, R5> CanRecoverFrom<(R1, R2, R3, R4, R5)> for $typ
+            where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2>
+                      + CanRecoverFrom<R3> + CanRecoverFrom<R4>
+                      + CanRecoverFrom<R5>{}
+
         // ------------------------------------------
 
         // 1-tuple* => scalar => 1-tuple*
@@ -514,6 +524,19 @@ macro_rules! impl_scalar_to_tuples {
                   R3: CanRecoverFrom<$typ>,
                   R4: CanRecoverFrom<$typ>,  {}
 
+        // 5-tuple* => scalar => 5-tuple*
+        unsafe impl<'a, R1, R2, R3, R4, R5> CanTranscendTo<$typ> for (R1, R2, R3, R4, R5)
+            where R1: CanTranscendTo<$typ>,
+                  R2: CanTranscendTo<$typ>,
+                  R3: CanTranscendTo<$typ>,
+                  R4: CanTranscendTo<$typ>,
+                  R5: CanTranscendTo<$typ>,  {}
+        unsafe impl<'a, R1, R2, R3, R4, R5> CanRecoverFrom<$typ> for (R1, R2, R3, R4, R5)
+            where R1: CanRecoverFrom<$typ>,
+                  R2: CanRecoverFrom<$typ>,
+                  R3: CanRecoverFrom<$typ>,
+                  R4: CanRecoverFrom<$typ>,
+                  R5: CanRecoverFrom<$typ>,  {}
         )*
     }
 }
@@ -557,4 +580,5 @@ impl_equal_tuples! {
     (A1, B1,) => (A2, B2,);
     (A1, B1, C1,) => (A2, B2, C2,);
     (A1, B1, C1, D1,) => (A2, B2, C2, D2,);
+    (A1, B1, C1, D1, E1,) => (A2, B2, C2, D2, E2,);
 }
