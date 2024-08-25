@@ -29,13 +29,17 @@ impl VarianceDeclarations {
         }
     }
 
-    pub(crate) fn pop_variance<'a>(&mut self, lifetime: &'a Lifetime) -> Variance<'a> {
+    pub(crate) fn pop_variance<'a>(
+        &mut self,
+        lifetime: &'a Lifetime,
+        options: &'a crate::TransientOptions,
+    ) -> Variance<'a> {
         let kind = match self {
             Self::Empty => VarianceKind::default(),
             Self::Global(kind) => kind.clone(),
             Self::Mapping(map) => map.remove(&lifetime.ident).unwrap_or_default(),
         };
-        Variance { lifetime, kind }
+        Variance { lifetime, kind, krate: &options.krate }
     }
 
     pub(crate) fn extract(attrs: &[Attribute]) -> Result<Self> {
@@ -136,16 +140,17 @@ impl fmt::Display for VarianceKind {
 pub(crate) struct Variance<'a> {
     pub(crate) lifetime: &'a Lifetime,
     pub(crate) kind: VarianceKind,
+    pub(crate) krate: &'a syn::Path,
 }
 
 impl<'a> ToTokens for Variance<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         use VarianceKind::*;
-        let lt = &self.lifetime;
-        tokens.extend(match self.kind {
-            Inv(span) => quote_spanned!(span => ::transient::Inv<#lt>),
-            Co(span) => quote_spanned!(span => ::transient::Co<#lt>),
-            Contra(span) => quote_spanned!(span => ::transient::Contra<#lt>),
+        let Variance { lifetime: lt, kind, krate } = self;
+        tokens.extend(match *kind {
+            Inv(span) => quote_spanned!(span => #krate::Inv<#lt>),
+            Co(span) => quote_spanned!(span => #krate::Co<#lt>),
+            Contra(span) => quote_spanned!(span => #krate::Contra<#lt>),
         });
     }
 }
