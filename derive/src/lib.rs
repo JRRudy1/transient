@@ -19,7 +19,7 @@ use utils::{extract_lifetimes, insert_static_predicates, TypeWithGenerics};
 use variance::{Variance, VarianceDeclarations, VarianceKind};
 
 // Maximum tuple length for which `Transience` is implemented
-const MAX_LIFETIMES: usize = 4;
+const MAX_LIFETIMES: usize = 5;
 
 /// Derive macro that implements the  [`Transient`] trait for any struct.
 ///
@@ -28,7 +28,7 @@ const MAX_LIFETIMES: usize = 4;
 /// a blanket impl of the `Transient` trait.
 ///
 /// This macro is limited to structs satisfying the following conditions:
-/// - There must be at most 4 lifetime parameters. This is not a limitation of
+/// - There must be at most 5 lifetime parameters. This is not a limitation of
 ///   the derive macro, but in the tuple length for which the `Transience` trait
 ///   is implemented.
 /// - There may be any number of type (or const) parameters, but the trait will
