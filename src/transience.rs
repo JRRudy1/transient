@@ -485,7 +485,7 @@ macro_rules! impl_scalar_to_tuples {
                       + CanTranscendTo<R5> {}
         unsafe impl<'a, R1, R2, R3, R4, R5> CanRecoverFrom<(R1, R2, R3, R4, R5)> for $typ
             where $typ: CanRecoverFrom<R1> + CanRecoverFrom<R2>
-                      + CanRecoverFrom<R3> + CanRecoverFrom<R4> 
+                      + CanRecoverFrom<R3> + CanRecoverFrom<R4>
                       + CanRecoverFrom<R5>{}
 
         // ------------------------------------------
@@ -523,7 +523,7 @@ macro_rules! impl_scalar_to_tuples {
                   R2: CanRecoverFrom<$typ>,
                   R3: CanRecoverFrom<$typ>,
                   R4: CanRecoverFrom<$typ>,  {}
-        
+
         // 5-tuple* => scalar => 5-tuple*
         unsafe impl<'a, R1, R2, R3, R4, R5> CanTranscendTo<$typ> for (R1, R2, R3, R4, R5)
             where R1: CanTranscendTo<$typ>,
