@@ -16,7 +16,7 @@ pub(super) struct ChecksModule<'a> {
 impl<'a> ChecksModule<'a> {
     #[rustfmt::skip]
     pub(super) fn new(impl_: &'a TransientImpl<'a>) -> Option<Self> {
-        let TransientImpl(self_type, _, transience) = impl_;
+        let TransientImpl(self_type, _, transience, _) = impl_;
         let name = Ident::new(
             &format!("__validate_{}", self_type.name),
             self_type.name.span(),

@@ -9,10 +9,12 @@ use syn::{parse_macro_input, parse_quote_spanned};
 use syn::{Data, DeriveInput, Generics, Ident, Lifetime};
 
 mod checks;
+mod options;
 mod utils;
 mod variance;
 
 use checks::ChecksModule;
+use options::TransientOptions;
 use utils::{extract_lifetimes, insert_static_predicates, TypeWithGenerics};
 use variance::{Variance, VarianceDeclarations, VarianceKind};
 
@@ -33,6 +35,8 @@ const MAX_LIFETIMES: usize = 4;
 ///   only be implemented where `T: 'static` for each type parameter `T`.
 ///
 /// # Customization
+///
+/// ## Variance
 /// By default, the [variance] of a deriving struct is assumed to be _invariant_
 /// respect to its lifetime parameter (if it has one), since this is the only
 /// type of variance that can be safely used for _all_ types without analyzing
@@ -55,6 +59,12 @@ const MAX_LIFETIMES: usize = 4;
 /// with other (non-global) declarations as long as there is no overlap. Option 4
 /// declares the variance w.r.t. each of the listed lifetimes, subject to the same
 /// rules as for option 3.
+///
+/// ## Crate path
+/// If it is desired that the `transient` crate's symbols be referenced from an
+/// alternate path in the generated impl, such as a re-export of the symbols in a
+/// downstream library, the `#[transient(crate = path::to::transient)]` attribute
+/// can be applied to the struct. By default, the path will be `::transient`.
 ///
 /// # Failure modes
 /// This macro can fail for any of the following reasons:
@@ -142,7 +152,7 @@ const MAX_LIFETIMES: usize = 4;
 /// [`Transient`]: ../transient/trait.Transient.html
 /// [`Static`]: ../transient/trait.Static.html
 /// [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
-#[proc_macro_derive(Transient, attributes(covariant, contravariant))]
+#[proc_macro_derive(Transient, attributes(transient, covariant, contravariant))]
 pub fn derive_transient(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match generate_impls(input) {
@@ -155,42 +165,49 @@ fn generate_impls(input: DeriveInput) -> Result<TokenStream2> {
     if !matches!(input.data, Data::Struct(_)) {
         return Err(Error::NotAStruct(input.ident.span()));
     }
+    let options = TransientOptions::extract(&input.attrs)?;
     let mut variance_decls = VarianceDeclarations::extract(&input.attrs)?;
     let self_type = SelfType::new(input.ident, input.generics)?;
     if self_type.is_static() {
         variance_decls.ensure_empty()?;
-        Ok(StaticImpl(&self_type).into_token_stream())
+        Ok(StaticImpl(&self_type, &options).into_token_stream())
     } else {
         let static_type = self_type.get_static_type();
-        let transience = self_type.resolve_transience(variance_decls)?;
-        let transient_impl = TransientImpl(&self_type, static_type, transience);
+        let transience = self_type.resolve_transience(variance_decls, &options)?;
+        let transient_impl = TransientImpl(&self_type, static_type, transience, &options);
         let checks_module = ChecksModule::new(&transient_impl);
         Ok(quote!(#transient_impl #checks_module))
     }
 }
 
 /// Represents the `impl Static` block for a 'static type
-struct StaticImpl<'a>(&'a SelfType);
+struct StaticImpl<'a>(&'a SelfType, &'a TransientOptions);
 
 impl<'a> ToTokens for StaticImpl<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let self_type = &self.0;
+        let StaticImpl(self_type, TransientOptions { krate }) = self;
         let (impl_generics, _, where_clause) = self_type.generics.split_for_impl();
         tokens.extend(quote!(
-            impl #impl_generics ::transient::Static for #self_type #where_clause {}
+            impl #impl_generics #krate::Static for #self_type #where_clause {}
         ));
     }
 }
 
 /// Represents the `impl Transient` block for a non-'static type
-struct TransientImpl<'a>(&'a SelfType, StaticType<'a>, Transience<'a>);
+struct TransientImpl<'a>(
+    &'a SelfType,
+    StaticType<'a>,
+    Transience<'a>,
+    &'a TransientOptions,
+);
 
 impl<'a> ToTokens for TransientImpl<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let TransientImpl(self_type, static_type, transience) = self;
+        let TransientImpl(self_type, static_type, transience, options) = self;
+        let krate = &options.krate;
         let (impl_generics, _, where_clause) = self_type.generics.split_for_impl();
         tokens.extend(quote!(
-            unsafe impl #impl_generics ::transient::Transient for #self_type #where_clause {
+            unsafe impl #impl_generics #krate::Transient for #self_type #where_clause {
                 type Static = #static_type;
                 type Transience = #transience;
             }
@@ -229,12 +246,16 @@ impl SelfType {
     }
     /// Attempt to unify the lifetimes of the type and the variances declared in its
     /// attributes to establish the variance with respect to each lifetime.
-    fn resolve_transience(&self, mut decls: VarianceDeclarations) -> Result<Transience> {
+    fn resolve_transience<'a>(
+        &'a self,
+        mut decls: VarianceDeclarations,
+        options: &'a TransientOptions,
+    ) -> Result<Transience<'a>> {
         // pop a variance from the declarations for each lifetime or use the default
         let variances = self
             .lifetimes
             .iter()
-            .map(|lt| decls.pop_variance(lt))
+            .map(|lt| decls.pop_variance(lt, options))
             .collect::<Vec<_>>();
         // check for remaining declarations that correspond to invalid lifetimes
         decls.ensure_empty()?;
@@ -269,7 +290,7 @@ impl<'a> ToTokens for Transience<'a> {
 
 /// Collection of internal error conditions
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub(crate) enum Error {
     #[error(transparent)]
     Syn(#[from] syn::Error),
     #[error("Only `struct`'s are supported!")]
@@ -280,9 +301,11 @@ enum Error {
     DuplicateVariance(VarianceKind, VarianceKind),
     #[error("Variance declared for an invalid lifetime `'{0}`!")]
     UnexpectedLifetime(Ident),
+    #[error("Invalid option!")]
+    InvalidOption(Span),
 }
 
-type Result<T> = std::result::Result<T, Error>;
+pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 impl Error {
     fn into_compile_error(self) -> TokenStream2 {
@@ -293,7 +316,9 @@ impl Error {
             Self::Syn(err) => err.span(),
             Self::DuplicateVariance(_, new) => new.span(),
             Self::UnexpectedLifetime(lifetime) => lifetime.span(),
-            Self::NotAStruct(span) | Self::TooManyLifetimes(span) => *span,
+            Self::NotAStruct(span) | Self::TooManyLifetimes(span) | Self::InvalidOption(span) => {
+                *span
+            }
         }
     }
 }
