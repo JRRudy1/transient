@@ -608,7 +608,7 @@ mod ndarray_impls {
 mod pyo3_impls {
     use crate::{tr::Transient, Co, Static};
     use pyo3::pyclass::{boolean_struct::False, PyClass};
-    use pyo3::{Borrowed, Bound, Py, PyRef, PyRefMut};
+    use pyo3::{Borrowed, Bound, Py, PyErr, PyRef, PyRefMut};
 
     /// Requires the `pyo3` crate feature
     impl<T: 'static> Static for Py<T> {}
@@ -636,6 +636,9 @@ mod pyo3_impls {
         type Static = PyRefMut<'static, T>;
         type Transience = Co<'py>;
     }
+
+    /// Requires the `pyo3` crate feature
+    impl Static for PyErr {}
 }
 
 #[cfg(feature = "numpy")]
