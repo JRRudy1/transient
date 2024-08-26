@@ -533,6 +533,25 @@ mod std_impls {
         type Static = &'static mut dyn StdAny;
         type Transience = Co<'a>;
     }
+
+    macro_rules! impl_fn_pointers {
+        { $( ($($In:ident),*) ),* } => {
+            $(
+            unsafe impl<$($In,)* Out> Transient for fn($($In),*) -> Out
+            where
+                $($In: Transient,)*
+                Out: Transient,
+            {
+                type Static = fn($($In::Static),*) -> Out::Static;
+                type Transience = ($(Contravariant<$In>,)* Covariant<Out>);
+            }
+            )*
+        };
+    }
+
+    impl_fn_pointers! {
+        (), (In1), (In1, In2), (In1, In2, In3), (In1, In2, In3, In4)
+    }
 }
 
 #[cfg(feature = "ndarray")]
