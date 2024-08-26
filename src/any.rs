@@ -5,11 +5,15 @@ use crate::{
     transience::{CanRecoverFrom, CanTranscendTo, Transience},
     transient::Transient,
 };
+use std::marker::{Send, Sync};
 
 /// Re-export from the [`std::any`] module.
-///
+#[rustversion::before(1.76)]
+pub use std::any::type_name;
+
+/// Re-export from the [`std::any`] module.
+#[rustversion::since(1.76)]
 pub use std::any::{type_name, type_name_of_val};
-use std::marker::{Send, Sync};
 
 ///////////////////////////////////////////////////////////////////////////////
 // `Any` trait
