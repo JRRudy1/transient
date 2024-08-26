@@ -643,7 +643,7 @@ mod pyo3_impls {
 
 #[cfg(feature = "numpy")]
 mod numpy_impls {
-    use ndarray::Dimension;
+    use numpy::ndarray::Dimension;
     use numpy::{Element, PyReadonlyArray, PyReadwriteArray};
 
     /// Requires the `numpy` crate feature
