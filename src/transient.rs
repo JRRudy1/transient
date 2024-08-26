@@ -431,7 +431,7 @@ mod std_impls {
         core::num::ParseFloatError,
         core::num::ParseIntError,
         core::str::ParseBoolError,
-        core::net::AddrParseError,
+        std::net::AddrParseError,
         std::io::Error,
     }
 
