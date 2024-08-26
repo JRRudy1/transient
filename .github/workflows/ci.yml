@@ -61,7 +61,8 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: "1.61"
+          # 1.68 used instead of the true MSRV to avoid long CI runs
+          toolchain: "1.68"
           override: true
 
       - name: Build
