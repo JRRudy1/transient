@@ -22,7 +22,7 @@ impl VarianceDeclarations {
     pub(crate) fn ensure_empty(&mut self) -> Result<()> {
         match self {
             Self::Mapping(map) if !map.is_empty() => {
-                let lifetime = map.pop_first().unwrap().0;
+                let lifetime = map.keys().next().unwrap().clone();
                 Err(Error::UnexpectedLifetime(lifetime))
             }
             _ => Ok(()),
@@ -61,16 +61,16 @@ impl VarianceDeclarations {
         };
         // this attr declares a variance, so a global variance must not be set
         if matches!(self, Self::Global(_)) {
-            let Self::Global(old) = mem::replace(self, Self::Empty) else {
-                unreachable!()
+            return match mem::replace(self, Self::Empty) {
+                Self::Global(old) => Err(Error::DuplicateVariance(old, kind)),
+                _ => unreachable!(),
             };
-            return Err(Error::DuplicateVariance(old, kind));
         }
         // this attr declares a global variance, so there must be no existing decls
         if let Meta::Path(_) = attr.meta {
             let old = match mem::replace(self, Self::Empty) {
                 Self::Global(old) => old,
-                Self::Mapping(mut map) => map.pop_last().unwrap().1,
+                Self::Mapping(map) => map.into_values().last().unwrap(),
                 Self::Empty => {
                     *self = Self::Global(kind);
                     return Ok(());
@@ -99,7 +99,7 @@ impl VarianceDeclarations {
     fn push(&mut self, ident: Ident, kind: VarianceKind) -> Result<()> {
         let map = self.get_mapping_mut().unwrap();
         if let Some(old) = map.insert(ident, kind) {
-            let new = map.pop_last().unwrap().1;
+            let new = map.values().last().unwrap().clone();
             Err(Error::DuplicateVariance(old, new))
         } else {
             Ok(())
