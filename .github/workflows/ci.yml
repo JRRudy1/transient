@@ -36,6 +36,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all-features
 
       - name: Lint
         uses: actions-rs/cargo@v1
@@ -48,6 +49,28 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  build-msrv:
+    name: Build MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: "1.61"
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --all-features
+        env:
+          CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
   test-derive:
     name: Test Derive Macro
