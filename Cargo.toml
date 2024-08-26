@@ -43,7 +43,7 @@ ndarray = ["dep:ndarray"]
 pyo3 = ["dep:pyo3"]
 
 # Provides `Transient` implementations for `numpy` types
-numpy = ["dep:numpy", "ndarray", "pyo3"]
+numpy = ["dep:numpy", "pyo3"]
 
 # Provides `Transient` implementations for `uuid` types
 uuid = ["dep:uuid"]

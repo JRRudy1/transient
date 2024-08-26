@@ -308,6 +308,7 @@
 //! [_subtyping and variance_]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
 #![deny(missing_docs, clippy::missing_safety_doc)]
+#![allow(unknown_lints, clippy::too_long_first_doc_paragraph)]
 
 pub mod any;
 pub mod transience;

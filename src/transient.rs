@@ -365,34 +365,22 @@ const fn check_static_type<T: Transient>() {
 }
 
 mod std_impls {
+    #![allow(unused_parens)]
     use super::{Static, Transient};
-    use crate::{Co, Covariant, Inv, Invariant};
-
-    use std::any::Any as StdAny;
-    use std::borrow::{Cow, ToOwned};
-    use std::char::ParseCharError;
-    use std::collections::HashMap;
-    use std::net::AddrParseError;
-    use std::num::{ParseFloatError, ParseIntError};
-    use std::str::ParseBoolError;
-    use std::string::ParseError;
+    use crate::{Co, Contravariant, Covariant, Inv, Invariant};
 
     macro_rules! impl_refs {
         {
             $type_:ty
             [$($param:tt $(: $bound1:tt $(+ $bounds:tt)*)?),*]
             $( ($($trans:ty),+) )?
-        }
-        =>
-        {
-            #[allow(unused_parens)]
+        } => {
             unsafe impl<'_a, $( $param $( : $bound1 $(+ $bounds )* )? ),*>
             Transient for &'_a $type_ {
                 type Static = &'static <$type_ as Transient>::Static;
                 type Transience = (Co<'_a> $($(, $trans)+)?);
             }
 
-            #[allow(unused_parens)]
             unsafe impl<'_a, $( $param $( : $bound1 $(+ $bounds )* )? ),*>
             Transient for &'_a mut $type_ {
                 type Static = &'static mut <$type_ as Transient>::Static;
@@ -416,6 +404,7 @@ mod std_impls {
                 type Static = &'static &'static mut <$type_ as Transient>::Static;
                 type Transience = (Co<'_a>, Co<'_b> $($(, $trans)+)?);
             }
+
             unsafe impl<'_a, '_b, $( $param $( : $bound1 $(+ $bounds )* )? ),*>
             Transient for &'_a mut &'_b mut $type_ {
                 type Static = &'static mut &'static <$type_ as Transient>::Static;
@@ -436,10 +425,13 @@ mod std_impls {
     impl_static! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
-        f32, f64, String, Box<str>, (),
-        ParseIntError, ParseCharError,
-        ParseFloatError, ParseBoolError,
-        ParseError, AddrParseError,
+        f32, f64, (), String, Box<str>,
+        core::convert::Infallible,
+        core::char::ParseCharError,
+        core::num::ParseFloatError,
+        core::num::ParseIntError,
+        core::str::ParseBoolError,
+        core::net::AddrParseError,
         std::io::Error,
     }
 
@@ -473,22 +465,27 @@ mod std_impls {
     }
     impl_refs!(Vec<T> [T: Transient] (Covariant<T>));
 
-    unsafe impl<K: Transient, V: Transient> Transient for HashMap<K, V> {
-        type Static = HashMap<K::Static, V::Static>;
+    unsafe impl<K: Transient, V: Transient> Transient for std::collections::HashMap<K, V> {
+        type Static = std::collections::HashMap<K::Static, V::Static>;
         type Transience = (Covariant<K>, Covariant<V>);
     }
-    impl_refs!(HashMap<K, V> [K: Transient, V: Transient] (Covariant<K>, Covariant<V>));
+    impl_refs!(
+        std::collections::HashMap<K, V>
+        [K: Transient, V: Transient]
+        (Covariant<K>, Covariant<V>)
+    );
 
     unsafe impl<T: Transient> Transient for Box<[T]> {
         type Static = Box<[T::Static]>;
         type Transience = Covariant<T>;
     }
 
-    unsafe impl<'a, T: Transient + ToOwned> Transient for Cow<'a, T>
+    unsafe impl<'a, T> Transient for std::borrow::Cow<'a, T>
     where
-        T::Static: ToOwned,
+        T: Transient + std::borrow::ToOwned,
+        T::Static: std::borrow::ToOwned,
     {
-        type Static = Cow<'static, T::Static>;
+        type Static = std::borrow::Cow<'static, T::Static>;
         type Transience = (Co<'a>, Covariant<T>);
     }
 
@@ -522,16 +519,40 @@ mod std_impls {
         type Transience = Invariant<T>;
     }
 
-    impl Static for Box<dyn StdAny> {}
+    unsafe impl<T: Transient> Transient for std::ptr::NonNull<T> {
+        type Static = std::ptr::NonNull<T::Static>;
+        type Transience = Covariant<T>;
+    }
 
-    unsafe impl<'a> Transient for &'a dyn StdAny {
-        type Static = &'static dyn StdAny;
+    impl Static for Box<dyn std::any::Any> {}
+
+    unsafe impl<'a> Transient for &'a dyn std::any::Any {
+        type Static = &'static dyn std::any::Any;
         type Transience = Co<'a>;
     }
 
-    unsafe impl<'a> Transient for &'a mut dyn StdAny {
-        type Static = &'static mut dyn StdAny;
+    unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
+        type Static = &'static mut dyn std::any::Any;
         type Transience = Co<'a>;
+    }
+
+    macro_rules! impl_fn_pointers {
+        { $( ($($In:ident),*) ),* } => {
+            $(
+            unsafe impl<$($In,)* Out> Transient for fn($($In),*) -> Out
+            where
+                $($In: Transient,)*
+                Out: Transient,
+            {
+                type Static = fn($($In::Static),*) -> Out::Static;
+                type Transience = ($(Contravariant<$In>,)* Covariant<Out>);
+            }
+            )*
+        };
+    }
+
+    impl_fn_pointers! {
+        (), (In1), (In1, In2), (In1, In2, In3), (In1, In2, In3, In4)
     }
 }
 
@@ -585,40 +606,44 @@ mod ndarray_impls {
 
 #[cfg(feature = "pyo3")]
 mod pyo3_impls {
+    use crate::{tr::Transient, Co, Static};
     use pyo3::pyclass::{boolean_struct::False, PyClass};
-    use pyo3::{Borrowed, Bound, Py, PyRef, PyRefMut};
+    use pyo3::{Borrowed, Bound, Py, PyErr, PyRef, PyRefMut};
 
     /// Requires the `pyo3` crate feature
-    impl<T: 'static> crate::Static for Py<T> {}
+    impl<T: 'static> Static for Py<T> {}
 
     /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: 'static> crate::Transient for Bound<'py, T> {
+    unsafe impl<'py, T: 'static> Transient for Bound<'py, T> {
         type Static = Bound<'static, T>;
-        type Transience = crate::Co<'py>;
+        type Transience = Co<'py>;
     }
 
     /// Requires the `pyo3` crate feature
-    unsafe impl<'a, 'py, T: 'static> crate::Transient for Borrowed<'a, 'py, T> {
+    unsafe impl<'a, 'py, T: 'static> Transient for Borrowed<'a, 'py, T> {
         type Static = Borrowed<'static, 'static, T>;
-        type Transience = (crate::Co<'a>, crate::Co<'py>);
+        type Transience = (Co<'a>, Co<'py>);
     }
 
     /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: PyClass> crate::Transient for PyRef<'py, T> {
+    unsafe impl<'py, T: PyClass> Transient for PyRef<'py, T> {
         type Static = PyRef<'static, T>;
-        type Transience = crate::Co<'py>;
+        type Transience = Co<'py>;
     }
 
     /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: PyClass<Frozen = False>> crate::Transient for PyRefMut<'py, T> {
+    unsafe impl<'py, T: PyClass<Frozen = False>> Transient for PyRefMut<'py, T> {
         type Static = PyRefMut<'static, T>;
-        type Transience = crate::Co<'py>;
+        type Transience = Co<'py>;
     }
+
+    /// Requires the `pyo3` crate feature
+    impl Static for PyErr {}
 }
 
 #[cfg(feature = "numpy")]
 mod numpy_impls {
-    use ndarray::Dimension;
+    use numpy::ndarray::Dimension;
     use numpy::{Element, PyReadonlyArray, PyReadwriteArray};
 
     /// Requires the `numpy` crate feature
