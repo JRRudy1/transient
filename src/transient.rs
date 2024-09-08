@@ -705,17 +705,15 @@ mod either_impls {
 
 #[cfg(feature = "serde_json")]
 mod serde_json_impls {
-    use crate::*;
     use serde_json::Error;
 
-    impl Static for Error {}
+    impl crate::Static for Error {}
 }
 
 #[cfg(feature = "rmp-serde")]
 mod rmp_serde_impls {
-    use crate::*;
     use rmp_serde::{decode, encode};
 
-    impl Static for encode::Error {}
-    impl Static for decode::Error {}
+    impl crate::Static for encode::Error {}
+    impl crate::Static for decode::Error {}
 }
