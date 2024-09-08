@@ -11,6 +11,7 @@ unsafe impl<'a> Transient for S<'a> {
 
 // This function requires `long` to shorten its lifetime from 'b to 'a, and
 // should be *rejected* if the type is considered to be *invariant*.
+#[allow(elided_named_lifetimes)] // (Ignore the fact that '_ is actually just 'b)
 fn shrink<'a, 'b: 'a>(long: Box<S<'b>>) -> Box<dyn Any<Inv<'a>> + '_> {
     long
 }
