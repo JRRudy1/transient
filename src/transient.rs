@@ -691,3 +691,20 @@ mod either_impls {
         type Transience = (Covariant<L>, Covariant<R>);
     }
 }
+
+#[cfg(feature = "serde_json")]
+mod serde_json_impls {
+    use crate::*;
+    use serde_json::Error;
+
+    impl Static for Error {}
+}
+
+#[cfg(feature = "rmp-serde")]
+mod rmp_serde_impls {
+    use crate::*;
+    use rmp_serde::{decode, encode};
+
+    impl Static for encode::Error {}
+    impl Static for decode::Error {}
+}
