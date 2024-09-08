@@ -1,6 +1,6 @@
 [package]
 name = "transient"
-version = "0.4.0"
+version = "0.4.1"
 description = "Reimplementation of `std::any::Any` with support for non-`'static` types"
 authors = ["Joshua Rudolph <jrrudolph93@gmail.com>"]
 readme = "README.md"
@@ -22,7 +22,7 @@ members = ["derive"]
 [dependencies]
 rustversion = "1.0"
 
-transient-derive = { path = "derive", version = "0.4", optional = true }
+transient-derive = { path = "derive", version = "0.4.1", optional = true }
 ndarray = { version = "0.15", optional = true }
 numpy = { version = "0.21", optional = true }
 pyo3 = { version = ">=0.21", optional = true }
