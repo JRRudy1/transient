@@ -28,6 +28,8 @@ numpy = { version = "0.21", optional = true }
 pyo3 = { version = ">=0.21", optional = true }
 uuid = { version = "1", optional = true }
 either = { version = ">=1", default-features = false, optional = true }
+serde_json = { version = ">=1", default-features = false, optional = true, features = ["std"] }
+rmp-serde = { version = ">=1", default-features = false, optional = true }
 
 [dev-dependencies]
 trybuild = { version = "1.0", features = ["diff"] }
@@ -52,6 +54,12 @@ uuid = ["dep:uuid"]
 
 # Provides `Transient` implementations for `either` types
 either = ["dep:either"]
+
+# Provides `Transient` implementations for `serde_json` types
+serde_json = ["dep:serde_json"]
+
+# Provides `Transient` implementations for `rmp_serde` types
+rmp-serde = ["dep:rmp-serde"]
 
 [workspace.lints.clippy]
 let_unit_value = "warn"
