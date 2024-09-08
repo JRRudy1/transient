@@ -1,7 +1,7 @@
 error: lifetime may not live long enough
   --> tests/fail/invariance-bad-function.rs:15:5
    |
-14 | fn shrink<'a, 'b: 'a>(long: Box<S<'b>>) -> Box<dyn Any<Inv<'a>> + '_> {
+14 | fn shrink<'a, 'b: 'a>(long: Box<S<'b>>) -> Box<dyn Any<Inv<'a>> + 'b> {
    |           --  -- lifetime `'b` defined here
    |           |
    |           lifetime `'a` defined here
