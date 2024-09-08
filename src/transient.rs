@@ -425,14 +425,26 @@ mod std_impls {
     impl_static! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
-        f32, f64, (), String, Box<str>,
-        core::convert::Infallible,
-        core::char::ParseCharError,
-        core::num::ParseFloatError,
-        core::num::ParseIntError,
-        core::str::ParseBoolError,
+        f32, f64, String, Box<str>, (),
+        std::char::ParseCharError,
+        std::char::DecodeUtf16Error,
+        std::num::ParseIntError,
+        std::num::ParseFloatError,
+        std::num::IntErrorKind,
+        std::num::TryFromIntError,
+        std::str::ParseBoolError,
+        std::str::Utf8Error,
+        std::string::ParseError,
+        std::string::FromUtf8Error,
+        std::string::FromUtf16Error,
         std::net::AddrParseError,
         std::io::Error,
+        std::io::ErrorKind,
+        std::fmt::Error,
+
+        std::env::VarError,
+        std::env::JoinPathsError,
+        std::time::SystemTimeError,
     }
 
     unsafe impl<'a> Transient for &'a str {
