@@ -423,8 +423,16 @@ pub type Lifetime<'a> = PhantomData<&'a ()>;
 // derived from these rules, so it is critical that they be correct.         //
 // ************************************************************************* //
 
-unsafe impl<R: Transience> CanTranscendTo<R> for Timeless {}
-unsafe impl<R: Transience> CanRecoverFrom<R> for Timeless {}
+// This has to be individual impls, to avoid conflicting with the blanket
+// impls below
+unsafe impl CanTranscendTo<Timeless> for Timeless {}
+unsafe impl CanRecoverFrom<Timeless> for Timeless {}
+unsafe impl<'a> CanTranscendTo<Co<'a>> for Timeless {}
+unsafe impl<'a> CanRecoverFrom<Co<'a>> for Timeless {}
+unsafe impl<'a> CanTranscendTo<Contra<'a>> for Timeless {}
+unsafe impl<'a> CanRecoverFrom<Contra<'a>> for Timeless {}
+unsafe impl<'a> CanTranscendTo<Inv<'a>> for Timeless {}
+unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Timeless {}
 
 unsafe impl<'a> CanTranscendTo<Inv<'a>> for Inv<'a> {}
 unsafe impl<'a> CanRecoverFrom<Inv<'a>> for Inv<'a> {}
@@ -541,7 +549,7 @@ macro_rules! impl_scalar_to_tuples {
     }
 }
 impl_scalar_to_tuples! {
-    Co<'a>, Contra<'a>, Inv<'a>
+    Co<'a>, Contra<'a>, Inv<'a>, Timeless
 }
 
 /// implements transitions between equal-length tuples where each sub-transition is
@@ -558,10 +566,10 @@ macro_rules! impl_equal_tuples {
         }
         unsafe impl<$($src),*> Transient for ($($src),*,)
         where
-            $( $src: Transience ),*
+            $( $src: Transient ),*
         {
             type Static = ($(<$src as Transient>::Static),*,);
-            type Transience = Self;
+            type Transience = ($(<$src as Transient>::Transience),*,);
         }
         unsafe impl<$($src),*, $($dst),*> CanTranscendTo<($($dst),*,)> for ($($src),*,)
         where
@@ -581,4 +589,104 @@ impl_equal_tuples! {
     (A1, B1, C1,) => (A2, B2, C2,);
     (A1, B1, C1, D1,) => (A2, B2, C2, D2,);
     (A1, B1, C1, D1, E1,) => (A2, B2, C2, D2, E2,);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Static;
+
+    use super::*;
+
+    fn assert_can_transend_to<T, Tr>()
+    where
+        T: Transient,
+        T::Transience: CanTranscendTo<Tr>,
+    {
+    }
+
+    #[test]
+    fn validate_static() {
+        struct A;
+        impl Static for A {}
+        struct B;
+        impl Static for B {}
+        assert_can_transend_to::<(A, B), ()>();
+    }
+
+    #[test]
+    fn validate_co<'a>() {
+        #[allow(dead_code)]
+        struct A<'a>(&'a ());
+        unsafe impl<'a> Transient for A<'a> {
+            type Static = A<'static>;
+            type Transience = Co<'a>;
+        }
+        struct B;
+        impl Static for B {}
+        assert_can_transend_to::<(A, B), Co<'a>>();
+        #[allow(dead_code)]
+        struct C<'a>(&'a ());
+        unsafe impl<'a> Transient for C<'a> {
+            type Static = C<'static>;
+            type Transience = Co<'a>;
+        }
+        assert_can_transend_to::<(A, C), Co<'a>>();
+    }
+
+    #[test]
+    fn validate_contra<'a>() {
+        #[allow(dead_code)]
+        struct A<'a>(fn(&'a ()));
+        unsafe impl<'a> Transient for A<'a> {
+            type Static = A<'static>;
+            type Transience = Contra<'a>;
+        }
+        struct B;
+        impl Static for B {}
+        assert_can_transend_to::<(A, B), Contra<'a>>();
+        #[allow(dead_code)]
+        struct C<'a>(fn(&'a ()));
+        unsafe impl<'a> Transient for C<'a> {
+            type Static = C<'static>;
+            type Transience = Contra<'a>;
+        }
+        assert_can_transend_to::<(A, C), Contra<'a>>();
+    }
+
+    #[test]
+    fn validate_inv<'a>() {
+        #[allow(dead_code)]
+        struct A<'a>(fn(&'a ()) -> &'a ());
+        unsafe impl<'a> Transient for A<'a> {
+            type Static = A<'static>;
+            type Transience = Inv<'a>;
+        }
+        struct B;
+        impl Static for B {}
+        assert_can_transend_to::<(A, B), Inv<'a>>();
+        #[allow(dead_code)]
+        struct C<'a>(fn(&'a ()) -> &'a ());
+        unsafe impl<'a> Transient for C<'a> {
+            type Static = C<'static>;
+            type Transience = Inv<'a>;
+        }
+        assert_can_transend_to::<(A, C), Inv<'a>>();
+    }
+
+    #[test]
+    fn validate_mixed<'a>() {
+        #[allow(dead_code)]
+        struct A<'a>(fn(&'a ()));
+        unsafe impl<'a> Transient for A<'a> {
+            type Static = A<'static>;
+            type Transience = Co<'a>;
+        }
+        #[allow(dead_code)]
+        struct B<'a>(fn(&'a ()));
+        unsafe impl<'a> Transient for B<'a> {
+            type Static = B<'static>;
+            type Transience = Contra<'a>;
+        }
+        assert_can_transend_to::<(A, B), Inv<'a>>();
+    }
 }
