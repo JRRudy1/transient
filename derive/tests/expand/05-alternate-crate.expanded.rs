@@ -13,25 +13,27 @@ where
     type Static = ContraCo<'static, 'static, T>;
     type Transience = (mycrate::transient::Contra<'a>, mycrate::transient::Co<'b>);
 }
-mod __validate_ContraCo {
-    #![allow(non_snake_case, dead_code)]
-    use super::*;
-    fn contravariant_wrt_a<'__short, 'a, 'b, T>(
-        v: ContraCo<'__short, 'b, T>,
-    ) -> ContraCo<'a, 'b, T>
-    where
-        T: 'static,
-        'a: '__short,
-    {
-        v
+const _: () = {
+    mod validate_ContraCo {
+        #![allow(non_snake_case, dead_code)]
+        use super::*;
+        fn contravariant_wrt_a<'__short, 'a, 'b, T>(
+            v: ContraCo<'__short, 'b, T>,
+        ) -> ContraCo<'a, 'b, T>
+        where
+            T: 'static,
+            'a: '__short,
+        {
+            v
+        }
+        fn covariant_wrt_b<'__long, 'a, 'b, T>(
+            v: ContraCo<'a, '__long, T>,
+        ) -> ContraCo<'a, 'b, T>
+        where
+            T: 'static,
+            '__long: 'b,
+        {
+            v
+        }
     }
-    fn covariant_wrt_b<'__long, 'a, 'b, T>(
-        v: ContraCo<'a, '__long, T>,
-    ) -> ContraCo<'a, 'b, T>
-    where
-        T: 'static,
-        '__long: 'b,
-    {
-        v
-    }
-}
+};

@@ -18,7 +18,7 @@ impl<'a> ChecksModule<'a> {
     pub(super) fn new(impl_: &'a TransientImpl<'a>) -> Option<Self> {
         let TransientImpl(self_type, _, transience, _) = impl_;
         let name = Ident::new(
-            &format!("__validate_{}", self_type.name),
+            &format!("validate_{}", self_type.name),
             self_type.name.span(),
         );
         let funcs = transience.0.iter()
@@ -36,11 +36,13 @@ impl<'a> ToTokens for ChecksModule<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let ChecksModule { name, funcs } = self;
         tokens.extend(quote!(
-            mod #name {
-                #![allow(non_snake_case, dead_code)]
-                use super::*;
-                #(#funcs)*
-            }
+            const _: () = {
+                mod #name {
+                    #![allow(non_snake_case, dead_code)]
+                    use super::*;
+                    #(#funcs)*
+                }
+            };
         ));
     }
 }
