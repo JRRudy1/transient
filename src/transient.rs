@@ -425,7 +425,7 @@ mod std_impls {
     impl_static! {
         isize, i8, i16, i32, i64, i128,
         usize, u8, u16, u32, u64, u128,
-        f32, f64, String, Box<str>, (),
+        f32, f64, String, Box<str>, (), bool,
         std::char::ParseCharError,
         std::char::DecodeUtf16Error,
         std::convert::Infallible,
