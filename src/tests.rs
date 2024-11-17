@@ -1,3 +1,5 @@
+//! Tests for various parts of the Transient API
+
 /// Tests for a covariant struct with no generic type parameters.
 mod covariant {
     use crate::{tr::Transient, Any, Co, Downcast, TypeId};
