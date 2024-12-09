@@ -3,6 +3,11 @@
 use crate::any::{Any, TypeId};
 use crate::transience::Transience;
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
+use alloc::boxed::Box;
+#[cfg(feature = "std")]
+use std::boxed::Box;
+
 /// Unsafe trait defining the lifetime-relationships of a potentially non-`'static`
 /// type so that it can be safely erased to [`dyn Any`]. This trait can be safely
 /// derived for most types using the [`Transient` derive macro].
@@ -302,6 +307,7 @@ pub unsafe trait Transient: Sized {
     /// `Transience` type (such as [`Co`][crate::Co]) and explicitly specify
     /// `dyn Any<Co>` even for trivial usages (although using `dyn Any<_>` and
     /// letting type-inference fill-in-the-blank will also work in some cases).
+    #[cfg(any(feature = "std", feature = "alloc"))]
     #[inline]
     fn erase<'a>(self: Box<Self>) -> Box<dyn Any<Self::Transience> + 'a>
     where
@@ -349,8 +355,7 @@ unsafe impl<S: Static> Transient for S {
 
 #[track_caller]
 const fn check_static_type<T: Transient>() {
-    use std::alloc::Layout;
-    use std::mem::size_of;
+    use core::{alloc::Layout, mem::size_of};
 
     assert!(
         size_of::<T>() == size_of::<T::Static>(),
@@ -367,7 +372,6 @@ const fn check_static_type<T: Transient>() {
 mod std_impls {
     #![allow(unused_parens)]
     use super::{Static, Transient};
-    use crate::{Co, Contravariant, Covariant, Inv, Invariant};
 
     macro_rules! impl_refs {
         {
@@ -422,131 +426,6 @@ mod std_impls {
         }
     }
 
-    impl_static! {
-        isize, i8, i16, i32, i64, i128,
-        usize, u8, u16, u32, u64, u128,
-        f32, f64, String, Box<str>, (), bool,
-        std::char::ParseCharError,
-        std::char::DecodeUtf16Error,
-        std::convert::Infallible,
-        std::num::ParseIntError,
-        std::num::ParseFloatError,
-        std::num::IntErrorKind,
-        std::num::TryFromIntError,
-        std::str::ParseBoolError,
-        std::str::Utf8Error,
-        std::string::FromUtf8Error,
-        std::string::FromUtf16Error,
-        std::net::AddrParseError,
-        std::io::Error,
-        std::io::ErrorKind,
-        std::fmt::Error,
-        std::env::VarError,
-        std::env::JoinPathsError,
-        std::time::SystemTimeError,
-    }
-
-    unsafe impl<'a> Transient for &'a str {
-        type Static = &'static str;
-        type Transience = Co<'a>;
-    }
-    impl_refs!(&'a str ['a]);
-
-    unsafe impl<'a> Transient for &'a mut str {
-        type Static = &'static mut str;
-        type Transience = Co<'a>;
-    }
-    impl_refs!(&'a mut str ['a]);
-
-    unsafe impl<'a, T: Transient> Transient for &'a [T] {
-        type Static = &'static [T::Static];
-        type Transience = (Co<'a>, Covariant<T>);
-    }
-    impl_refs!(&'a [T] ['a, T: Transient] (Co<'a>, Covariant<T>));
-
-    unsafe impl<'a, T: Transient> Transient for &'a mut [T] {
-        type Static = &'static mut [T::Static];
-        type Transience = (Co<'a>, Invariant<T>);
-    }
-    impl_refs!(&'a mut [T] ['a, T: Transient] (Co<'a>, Invariant<T>));
-
-    unsafe impl<T: Transient> Transient for Vec<T> {
-        type Static = Vec<T::Static>;
-        type Transience = Covariant<T>;
-    }
-    impl_refs!(Vec<T> [T: Transient] (Covariant<T>));
-
-    unsafe impl<K: Transient, V: Transient> Transient for std::collections::HashMap<K, V> {
-        type Static = std::collections::HashMap<K::Static, V::Static>;
-        type Transience = (Covariant<K>, Covariant<V>);
-    }
-    impl_refs!(
-        std::collections::HashMap<K, V>
-        [K: Transient, V: Transient]
-        (Covariant<K>, Covariant<V>)
-    );
-
-    unsafe impl<T: Transient> Transient for Box<[T]> {
-        type Static = Box<[T::Static]>;
-        type Transience = Covariant<T>;
-    }
-
-    unsafe impl<'a, T> Transient for std::borrow::Cow<'a, T>
-    where
-        T: Transient + std::borrow::ToOwned,
-        T::Static: std::borrow::ToOwned,
-    {
-        type Static = std::borrow::Cow<'static, T::Static>;
-        type Transience = (Co<'a>, Covariant<T>);
-    }
-
-    unsafe impl<T: Transient> Transient for Option<T> {
-        type Static = Option<T::Static>;
-        type Transience = Covariant<T>;
-    }
-
-    unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
-        type Static = Result<T::Static, E>;
-        type Transience = Covariant<T>;
-    }
-
-    unsafe impl<T: Transient> Transient for std::marker::PhantomData<T> {
-        type Static = std::marker::PhantomData<T::Static>;
-        type Transience = Covariant<T>;
-    }
-
-    unsafe impl<T: Transient> Transient for std::cell::Cell<T> {
-        type Static = std::marker::PhantomData<T::Static>;
-        type Transience = Invariant<T>;
-    }
-
-    unsafe impl<T: Transient> Transient for *const T {
-        type Static = *const T::Static;
-        type Transience = Covariant<T>;
-    }
-
-    unsafe impl<T: Transient> Transient for *mut T {
-        type Static = *mut T::Static;
-        type Transience = Invariant<T>;
-    }
-
-    unsafe impl<T: Transient> Transient for std::ptr::NonNull<T> {
-        type Static = std::ptr::NonNull<T::Static>;
-        type Transience = Covariant<T>;
-    }
-
-    impl Static for Box<dyn std::any::Any> {}
-
-    unsafe impl<'a> Transient for &'a dyn std::any::Any {
-        type Static = &'static dyn std::any::Any;
-        type Transience = Co<'a>;
-    }
-
-    unsafe impl<'a> Transient for &'a mut dyn std::any::Any {
-        type Static = &'static mut dyn std::any::Any;
-        type Transience = Co<'a>;
-    }
-
     macro_rules! impl_fn_pointers {
         { $( ($($In:ident),*) ),* } => {
             $(
@@ -562,8 +441,206 @@ mod std_impls {
         };
     }
 
-    impl_fn_pointers! {
-        (), (In1), (In1, In2), (In1, In2, In3), (In1, In2, In3, In4)
+    /// impls for types that do not require `std` or `alloc`
+    mod _core {
+        use super::{Static, Transient};
+        use crate::{Co, Contravariant, Covariant, Inv, Invariant};
+
+        impl_static! {
+            isize, i8, i16, i32, i64, i128,
+            usize, u8, u16, u32, u64, u128,
+            f32, f64, (), bool,
+            ::core::char::ParseCharError,
+            ::core::char::DecodeUtf16Error,
+            ::core::convert::Infallible,
+            ::core::num::ParseIntError,
+            ::core::num::ParseFloatError,
+            ::core::num::IntErrorKind,
+            ::core::num::TryFromIntError,
+            ::core::str::ParseBoolError,
+            ::core::str::Utf8Error,
+            ::core::net::AddrParseError,
+            ::core::fmt::Error,
+        }
+
+        unsafe impl<'a> Transient for &'a str {
+            type Static = &'static str;
+            type Transience = Co<'a>;
+        }
+        impl_refs!(&'a str ['a]);
+
+        unsafe impl<'a> Transient for &'a mut str {
+            type Static = &'static mut str;
+            type Transience = Co<'a>;
+        }
+        impl_refs!(&'a mut str ['a]);
+
+        unsafe impl<'a, T: Transient> Transient for &'a [T] {
+            type Static = &'static [T::Static];
+            type Transience = (Co<'a>, Covariant<T>);
+        }
+        impl_refs!(&'a [T] ['a, T: Transient] (Co<'a>, Covariant<T>));
+
+        unsafe impl<'a, T: Transient> Transient for &'a mut [T] {
+            type Static = &'static mut [T::Static];
+            type Transience = (Co<'a>, Invariant<T>);
+        }
+        impl_refs!(&'a mut [T] ['a, T: Transient] (Co<'a>, Invariant<T>));
+
+        unsafe impl<T: Transient> Transient for Option<T> {
+            type Static = Option<T::Static>;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<T: Transient, E: 'static> Transient for Result<T, E> {
+            type Static = Result<T::Static, E>;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<T: Transient> Transient for ::core::marker::PhantomData<T> {
+            type Static = ::core::marker::PhantomData<T::Static>;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<T: Transient> Transient for ::core::cell::Cell<T> {
+            type Static = ::core::marker::PhantomData<T::Static>;
+            type Transience = Invariant<T>;
+        }
+
+        unsafe impl<T: Transient> Transient for *const T {
+            type Static = *const T::Static;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<T: Transient> Transient for *mut T {
+            type Static = *mut T::Static;
+            type Transience = Invariant<T>;
+        }
+
+        unsafe impl<T: Transient> Transient for core::ptr::NonNull<T> {
+            type Static = core::ptr::NonNull<T::Static>;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<'a> Transient for &'a dyn ::core::any::Any {
+            type Static = &'static dyn ::core::any::Any;
+            type Transience = Co<'a>;
+        }
+
+        unsafe impl<'a> Transient for &'a mut dyn ::core::any::Any {
+            type Static = &'static mut dyn ::core::any::Any;
+            type Transience = Co<'a>;
+        }
+
+        impl_fn_pointers! {
+            (), (In1), (In1, In2), (In1, In2, In3), (In1, In2, In3, In4)
+        }
+    }
+
+    /// impls that require either the `std` or `alloc` feature
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    mod _alloc {
+        use super::{Static, Transient};
+        use crate::{Co, Covariant, Inv};
+
+        #[cfg(all(feature = "alloc", not(feature = "std")))]
+        use alloc::{borrow, boxed, collections, string, vec};
+        #[cfg(feature = "std")]
+        use std::{borrow, boxed, collections, string, vec};
+
+        impl_static! {
+            boxed::Box<str>,
+            boxed::Box<dyn ::core::any::Any>,
+            string::String,
+            string::FromUtf8Error,
+            string::FromUtf16Error,
+        }
+
+        unsafe impl<'a, T> Transient for borrow::Cow<'a, T>
+        where
+            T: Transient + borrow::ToOwned,
+            T::Static: borrow::ToOwned,
+        {
+            type Static = borrow::Cow<'static, T::Static>;
+            type Transience = (Co<'a>, Covariant<T>);
+        }
+
+        unsafe impl<T: Transient> Transient for vec::Vec<T> {
+            type Static = vec::Vec<T::Static>;
+            type Transience = Covariant<T>;
+        }
+        impl_refs!(vec::Vec<T> [T: Transient] (Covariant<T>));
+
+        unsafe impl<T: Transient> Transient for boxed::Box<[T]> {
+            type Static = boxed::Box<[T::Static]>;
+            type Transience = Covariant<T>;
+        }
+
+        unsafe impl<K: Transient, V: Transient> Transient for collections::BTreeMap<K, V> {
+            type Static = collections::BTreeMap<K::Static, V::Static>;
+            type Transience = (Covariant<K>, Covariant<V>);
+        }
+        impl_refs!(
+            collections::BTreeMap<K, V>
+            [K: Transient, V: Transient]
+            (Covariant<K>, Covariant<V>)
+        );
+
+        unsafe impl<T: Transient> Transient for collections::BTreeSet<T> {
+            type Static = collections::BTreeSet<T::Static>;
+            type Transience = Covariant<T>;
+        }
+        impl_refs!(
+            collections::BTreeSet<T>
+            [T: Transient]
+            (Covariant<T>)
+        );
+
+        unsafe impl<T: Transient> Transient for collections::LinkedList<T> {
+            type Static = collections::LinkedList<T::Static>;
+            type Transience = Covariant<T>;
+        }
+        impl_refs!(
+            collections::LinkedList<T>
+            [T: Transient]
+            (Covariant<T>)
+        );
+
+        unsafe impl<T: Transient> Transient for collections::VecDeque<T> {
+            type Static = collections::VecDeque<T::Static>;
+            type Transience = Covariant<T>;
+        }
+        impl_refs!(
+            collections::VecDeque<T>
+            [T: Transient]
+            (Covariant<T>)
+        );
+    }
+
+    /// impls that require the `std` feature
+    #[cfg(feature = "std")]
+    mod _std {
+        use super::{Static, Transient};
+        use crate::{Co, Covariant, Inv};
+        use std::collections::HashMap;
+
+        impl_static! {
+            std::io::Error,
+            std::io::ErrorKind,
+            std::env::VarError,
+            std::env::JoinPathsError,
+            std::time::SystemTimeError,
+        }
+
+        unsafe impl<K: Transient, V: Transient> Transient for HashMap<K, V> {
+            type Static = HashMap<K::Static, V::Static>;
+            type Transience = (Covariant<K>, Covariant<V>);
+        }
+        impl_refs!(
+            HashMap<K, V>
+            [K: Transient, V: Transient]
+            (Covariant<K>, Covariant<V>)
+        );
     }
 }
 
