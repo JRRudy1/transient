@@ -4,6 +4,7 @@ fn test_pass() {
     t.pass("tests/pass/*.rs");
 }
 
+#[rustversion::stable]
 #[test]
 fn test_fail() {
     let t = trybuild::TestCases::new();
