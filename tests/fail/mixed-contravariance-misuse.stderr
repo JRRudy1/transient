@@ -7,6 +7,6 @@ error: lifetime may not live long enough
    |                lifetime `'short` defined here
 ...
 16 |     long_long
-   |     ^^^^^^^^^ cast requires that `'short` must outlive `'long`
+   |     ^^^^^^^^^ coercion requires that `'short` must outlive `'long`
    |
    = help: consider adding the following bound: `'short: 'long`
