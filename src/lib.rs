@@ -307,12 +307,22 @@
 //! [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [_subtyping and variance_]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Support using `transient` without the standard library
+#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs, clippy::missing_safety_doc)]
 #![allow(
     unknown_lints,
     clippy::too_long_first_doc_paragraph,
     clippy::needless_lifetimes
 )]
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 pub mod any;
 pub mod transience;
