@@ -3,7 +3,7 @@ fn test_pass() {
     let t = trybuild::TestCases::new();
     t.pass("tests/pass/*.rs");
 }
-// #[rustversion::stable]
+
 #[rustversion::all(since(1.82), stable)]
 #[test]
 fn test_fail() {
