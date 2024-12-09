@@ -65,7 +65,6 @@ rmp-serde = ["dep:rmp-serde"]
 let_unit_value = "warn"
 manual_assert = "warn"
 unnecessary_wraps = "warn"
-needless-lifetimes = "allow"
 
 [workspace.lints.rust]
 elided_lifetimes_in_paths = "warn"
