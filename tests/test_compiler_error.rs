@@ -1,5 +1,6 @@
 //! Entry-point for tests that should fail to compile with an expected error message
 
+#[rustversion::stable]
 #[test]
 #[cfg_attr(miri, ignore)]
 fn variance_tests() {

@@ -27,4 +27,5 @@ thiserror = "1"
 [dev-dependencies]
 trybuild = { version = "1.0.96", features = ["diff"] }
 macrotest = "1.0.12"
+rustversion = "1.0"
 transient = { path = ".." }
