@@ -1,7 +1,7 @@
 //! Defines the [`Transient`][crate::Transient] derive macro that safely implements
 //! the [`Transient`][transient::tr::Transient] trait for any struct with at most 4
 //! lifetime parameters.
-#![allow(unknown_lints, clippy::needless_lifetimes)] 
+#![allow(unknown_lints, clippy::needless_lifetimes)]
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
