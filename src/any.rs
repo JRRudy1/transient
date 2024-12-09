@@ -5,15 +5,20 @@ use crate::{
     transience::{CanRecoverFrom, CanTranscendTo, Transience},
     transient::Transient,
 };
-use std::marker::{Send, Sync};
+
+#[cfg(all(feature = "alloc", not(feature = "std")))]
+use alloc::boxed::Box;
+#[cfg(feature = "std")]
+use std::boxed::Box;
+
+use core::marker::{Send, Sync};
 
 /// Re-export from the [`std::any`] module.
-#[rustversion::before(1.76)]
-pub use std::any::type_name;
+pub use core::any::type_name;
 
 /// Re-export from the [`std::any`] module.
 #[rustversion::since(1.76)]
-pub use std::any::{type_name, type_name_of_val};
+pub use core::any::type_name_of_val;
 
 ///////////////////////////////////////////////////////////////////////////////
 // `Any` trait
@@ -107,6 +112,7 @@ pub trait Downcast<R: Transience> {
     /// Attempt to downcast the box to a concrete type with its lifetime
     /// parameters restored, returning the original in the `Err` variant
     /// if the type was incorrect.
+    #[cfg(any(feature = "std", feature = "alloc"))]
     fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
     where
         T::Transience: CanRecoverFrom<R>;
@@ -132,6 +138,7 @@ pub trait Downcast<R: Transience> {
     /// the incorrect type is *undefined behavior*. However, the the caller is _not_
     /// expected to uphold any lifetime guarantees, since the trait bounds handle
     /// this statically.
+    #[cfg(any(feature = "std", feature = "alloc"))]
     unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
     where
         T::Transience: CanRecoverFrom<R>;
@@ -171,6 +178,7 @@ macro_rules! dyn_any_impls {
                 self.type_id() == TypeId::of::<T>()
             }
 
+            #[cfg(any(feature = "std", feature = "alloc"))]
             #[inline]
             fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
             where
@@ -210,6 +218,7 @@ macro_rules! dyn_any_impls {
                 }
             }
 
+            #[cfg(any(feature = "std", feature = "alloc"))]
             #[inline]
             unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
             where
@@ -250,8 +259,8 @@ macro_rules! dyn_any_impls {
             }
         }
 
-        impl<R: Transience> std::fmt::Debug for dyn Any<R> $($for)* + '_ {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl<R: Transience> core::fmt::Debug for dyn Any<R> $($for)* + '_ {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 f.write_str("dyn Any<")?;
                 f.write_str(type_name::<R>().rsplit("::").next().unwrap())?;
                 let xtraits = stringify!($($for)*);
@@ -325,7 +334,7 @@ dyn_any_impls!(+ Send + Sync);
 /// ```
 /// [`T::Static`]: Transient::Static
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TypeId(std::any::TypeId);
+pub struct TypeId(core::any::TypeId);
 
 impl TypeId {
     /// Returns the `TypeId` of the [`Transient`] type this generic function
@@ -354,7 +363,7 @@ impl TypeId {
     #[inline]
     pub fn of<T: Transient>() -> Self {
         let () = T::CHECK;
-        TypeId(std::any::TypeId::of::<T::Static>())
+        TypeId(core::any::TypeId::of::<T::Static>())
     }
 
     /// Returns the `TypeId` for the type of the given value.
@@ -371,37 +380,37 @@ impl TypeId {
     }
 }
 
-impl From<std::any::TypeId> for TypeId {
+impl From<core::any::TypeId> for TypeId {
     #[inline]
-    fn from(value: std::any::TypeId) -> Self {
+    fn from(value: core::any::TypeId) -> Self {
         TypeId(value)
     }
 }
 
-impl From<TypeId> for std::any::TypeId {
+impl From<TypeId> for core::any::TypeId {
     #[inline]
     fn from(value: TypeId) -> Self {
         value.0
     }
 }
 
-impl PartialEq<std::any::TypeId> for TypeId {
+impl PartialEq<core::any::TypeId> for TypeId {
     #[inline]
-    fn eq(&self, other: &std::any::TypeId) -> bool {
+    fn eq(&self, other: &core::any::TypeId) -> bool {
         self.0.eq(other)
     }
 }
 
-impl std::fmt::Debug for TypeId {
+impl core::fmt::Debug for TypeId {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl std::hash::Hash for TypeId {
+impl core::hash::Hash for TypeId {
     #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state)
     }
 }
@@ -409,22 +418,21 @@ impl std::hash::Hash for TypeId {
 #[cfg(test)]
 // FIXME: move to crate::tests
 mod tests {
-    use super::{Any, Downcast};
-    use crate::{tr::Transient, Co, Inv};
+    use crate::{tr::Transient, Any, Co, Downcast, Inv};
+
+    #[cfg(all(feature = "alloc", not(feature = "std")))]
+    use alloc::{boxed::Box, format};
+    #[cfg(feature = "std")]
+    use std::{boxed::Box, format};
 
     #[test]
-    fn test_primative() {
-        let val = 5;
-        let valref = &val;
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    fn owned_primative_types() {
+        let value = 5_usize;
+        let valref: &usize = &value;
         let valrefref = &valref;
 
-        let erased: Vec<&dyn Any<Co>> = vec![&5, &valref, &valrefref];
-        assert_eq!(erased[0].downcast_ref::<i32>().unwrap(), &5);
-        assert_eq!(erased[1].downcast_ref::<&i32>().unwrap(), &valref);
-        assert_eq!(erased[2].downcast_ref::<&&i32>().unwrap(), &valrefref);
-
         // owned `usize`
-        let value = 5_usize;
         let ts: Box<dyn Any<()>> = Box::new(5_usize);
         let co: Box<dyn Any<Co>> = Box::new(5_usize);
         let inv: Box<dyn Any<Inv>> = Box::new(5_usize);
@@ -432,29 +440,13 @@ mod tests {
         assert_eq!(*co.downcast::<usize>().unwrap(), value);
         assert_eq!(*inv.downcast::<usize>().unwrap(), value);
 
-        // borrowed `usize`
-        let ts: &dyn Any = &value;
-        let co: &dyn Any<Co> = &value;
-        let inv: &dyn Any<Inv> = &value;
-        assert_eq!(ts.downcast_ref::<usize>().unwrap(), &value);
-        assert_eq!(co.downcast_ref::<usize>().unwrap(), &value);
-        assert_eq!(inv.downcast_ref::<usize>().unwrap(), &value);
-
         // owned `&usize`
-        let valref: &usize = &value;
         let co: Box<dyn Any<Co>> = Box::new(valref);
         let inv: Box<dyn Any<Inv>> = Box::new(valref);
         assert_eq!(*co.downcast::<&usize>().unwrap(), valref);
         assert_eq!(*inv.downcast::<&usize>().unwrap(), valref);
 
-        // borrowed `&usize`
-        let co: &dyn Any<Co> = &valref;
-        let inv: &dyn Any<Inv> = &valref;
-        assert_eq!(co.downcast_ref::<&usize>().unwrap(), &valref);
-        assert_eq!(inv.downcast_ref::<&usize>().unwrap(), &valref);
-
         // owned `&&usize`
-        let valrefref = &valref;
         let inv_inv: Box<dyn Any<(Inv, Inv)>> = Box::new(valrefref);
         let inv_co: Box<dyn Any<(Inv, Co)>> = Box::new(valrefref);
         let co_inv: Box<dyn Any<(Co, Inv)>> = Box::new(valrefref);
@@ -467,6 +459,56 @@ mod tests {
         assert_eq!(*co_co.downcast::<&&usize>().unwrap(), valrefref);
         assert_eq!(*co.downcast::<&&usize>().unwrap(), valrefref);
         assert_eq!(*inv.downcast::<&&usize>().unwrap(), valrefref);
+
+        // owned `&mut &mut usize`
+        let mut value = 5_usize;
+        let mut valmut = &mut value;
+        let inv_inv: Box<dyn Any<(Inv, Inv)>> = Box::new(&mut valmut);
+        assert_eq!(
+            *inv_inv.downcast::<&mut &mut usize>().unwrap(),
+            &mut &mut 5usize
+        );
+        let co_inv: Box<dyn Any<(Co, Inv)>> = Box::new(&mut valmut);
+        assert_eq!(
+            *co_inv.downcast::<&mut &mut usize>().unwrap(),
+            &mut &mut 5usize
+        );
+        let inv: Box<dyn Any<Inv>> = Box::new(&mut valmut);
+        assert_eq!(
+            *inv.downcast::<&mut &mut usize>().unwrap(),
+            &mut &mut 5usize
+        );
+    }
+
+    #[test]
+    fn borrowed_primative_types() {
+        let val: i32 = 5;
+        let valref = &val;
+        let valrefref = &valref;
+
+        let erased: [&dyn Any<Co>; 3] = [&5, &valref, &valrefref];
+        assert_eq!(erased[0].downcast_ref::<i32>().unwrap(), &5);
+        assert_eq!(erased[1].downcast_ref::<&i32>().unwrap(), &valref);
+        assert_eq!(erased[2].downcast_ref::<&&i32>().unwrap(), &valrefref);
+
+        // test values
+        let value = 5_usize;
+        let valref: &usize = &value;
+        let valrefref = &valref;
+
+        // borrowed `usize`
+        let ts: &dyn Any = &value;
+        let co: &dyn Any<Co> = &value;
+        let inv: &dyn Any<Inv> = &value;
+        assert_eq!(ts.downcast_ref::<usize>().unwrap(), &value);
+        assert_eq!(co.downcast_ref::<usize>().unwrap(), &value);
+        assert_eq!(inv.downcast_ref::<usize>().unwrap(), &value);
+
+        // borrowed `&usize`
+        let co: &dyn Any<Co> = &valref;
+        let inv: &dyn Any<Inv> = &valref;
+        assert_eq!(co.downcast_ref::<&usize>().unwrap(), &valref);
+        assert_eq!(inv.downcast_ref::<&usize>().unwrap(), &valref);
 
         // borrowed `&&usize`
         let inv_inv: &dyn Any<(Inv, Inv)> = &valrefref;
@@ -482,75 +524,81 @@ mod tests {
         assert_eq!(co.downcast_ref::<&&usize>().unwrap(), &valrefref);
         assert_eq!(inv.downcast_ref::<&&usize>().unwrap(), &valrefref);
 
-        {
-            // owned `&mut &mut usize`
-            let mut value = 5_usize;
-            let mut valmut = &mut value;
-            let inv_inv: Box<dyn Any<(Inv, Inv)>> = Box::new(&mut valmut);
-            assert_eq!(
-                *inv_inv.downcast::<&mut &mut usize>().unwrap(),
-                &mut &mut 5usize
-            );
-            let co_inv: Box<dyn Any<(Co, Inv)>> = Box::new(&mut valmut);
-            assert_eq!(
-                *co_inv.downcast::<&mut &mut usize>().unwrap(),
-                &mut &mut 5usize
-            );
-            let inv: Box<dyn Any<Inv>> = Box::new(&mut valmut);
-            assert_eq!(
-                *inv.downcast::<&mut &mut usize>().unwrap(),
-                &mut &mut 5usize
-            );
-        }
-        {
-            // borrowed `&mut &mut usize`
-            let mut value = 5_usize;
-            let mut valmut = &mut value;
-            let valmutmut = &mut valmut;
-            let inv_inv: &dyn Any<(Inv, Inv)> = &valmutmut;
-            assert_eq!(
-                inv_inv.downcast_ref::<&mut &mut usize>().unwrap(),
-                &&mut &mut 5usize
-            );
-            let co_inv: &dyn Any<(Co, Inv)> = &valmutmut;
-            assert_eq!(
-                co_inv.downcast_ref::<&mut &mut usize>().unwrap(),
-                &&mut &mut 5usize
-            );
-            let inv: &dyn Any<Inv> = &valmutmut;
-            assert_eq!(
-                inv.downcast_ref::<&mut &mut usize>().unwrap(),
-                &&mut &mut 5usize
-            );
-        }
+        // borrowed `&mut &mut usize`
+        let mut value = 5_usize;
+        let mut valmut = &mut value;
+        let valmutmut = &mut valmut;
+        let inv_inv: &dyn Any<(Inv, Inv)> = &valmutmut;
+        assert_eq!(
+            inv_inv.downcast_ref::<&mut &mut usize>().unwrap(),
+            &&mut &mut 5usize
+        );
+        let co_inv: &dyn Any<(Co, Inv)> = &valmutmut;
+        assert_eq!(
+            co_inv.downcast_ref::<&mut &mut usize>().unwrap(),
+            &&mut &mut 5usize
+        );
+        let inv: &dyn Any<Inv> = &valmutmut;
+        assert_eq!(
+            inv.downcast_ref::<&mut &mut usize>().unwrap(),
+            &&mut &mut 5usize
+        );
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Usize(usize);
+
+    unsafe impl Transient for Usize {
+        type Static = Usize;
+        type Transience = ();
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct UsizeRef<'a>(&'a usize);
+
+    unsafe impl<'a> Transient for UsizeRef<'a> {
+        type Static = UsizeRef<'static>;
+        type Transience = Co<'a>;
     }
 
     #[test]
-    fn test_custom() {
-        #[derive(Debug, Clone)]
-        pub struct Usize(usize);
-
-        unsafe impl Transient for Usize {
-            type Static = Usize;
-            type Transience = ();
-        }
-
-        #[derive(Debug, Clone, Copy)]
-        pub struct UsizeRef<'a>(&'a usize);
-
-        unsafe impl<'a> Transient for UsizeRef<'a> {
-            type Static = UsizeRef<'static>;
-            type Transience = Co<'a>;
-        }
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    fn owned_custom_types() {
+        let usize_ = Usize(5_usize);
+        let usize_ref = UsizeRef(&usize_.0);
 
         // owned `Usize`
-        let usize_ = Usize(5_usize);
         let stc: Box<dyn Any<()>> = Box::new(usize_.clone());
         let inv: Box<dyn Any<Inv>> = Box::new(usize_.clone());
         let co: Box<dyn Any<Co>> = Box::new(usize_.clone());
         assert_eq!(stc.downcast::<Usize>().unwrap().0, 5_usize);
         assert_eq!(inv.downcast::<Usize>().unwrap().0, 5_usize);
         assert_eq!(co.downcast::<Usize>().unwrap().0, 5_usize);
+
+        // owned `UsizeRef`
+        let inv: Box<dyn Any<Inv>> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co>> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send
+        let inv: Box<dyn Any<Inv> + Send> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+
+        // owned `UsizeRef` + Send + Sync
+        let usize_ref = UsizeRef(&usize_.0);
+        let inv: Box<dyn Any<Inv> + Send + Sync> = Box::new(usize_ref.clone());
+        let co: Box<dyn Any<Co> + Send + Sync> = Box::new(usize_ref.clone());
+        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+    }
+
+    #[test]
+    fn borrowed_custom_types() {
+        let usize_ = Usize(5_usize);
+        let usize_ref = UsizeRef(&usize_.0);
 
         // borrowed `Usize`
         let stc: &dyn Any<()> = &usize_;
@@ -559,48 +607,32 @@ mod tests {
         assert_eq!(stc.downcast_ref::<Usize>().unwrap().0, 5_usize);
         assert_eq!(inv.downcast_ref::<Usize>().unwrap().0, 5_usize);
         assert_eq!(co.downcast_ref::<Usize>().unwrap().0, 5_usize);
-        assert_eq!(&format!("{:?}", stc), "dyn Any<()>");
 
-        // owned `UsizeRef`
-        let usize_ref = UsizeRef(&usize_.0);
-        let inv: Box<dyn Any<Inv>> = Box::new(usize_ref.clone());
-        let co: Box<dyn Any<Co>> = Box::new(usize_ref.clone());
-        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
-        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
+        #[cfg(any(feature = "std", feature = "alloc"))]
+        assert_eq!(&format!("{:?}", stc), "dyn Any<()>");
 
         // borrowed `UsizeRef`
         let inv: &dyn Any<Inv> = &usize_ref;
         let co: &dyn Any<Co> = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        #[cfg(any(feature = "std", feature = "alloc"))]
         assert_eq!(&format!("{:?}", co), "dyn Any<Co>");
-
-        // owned `UsizeRef` + Send
-        let usize_ref = UsizeRef(&usize_.0);
-        let inv: Box<dyn Any<Inv> + Send> = Box::new(usize_ref.clone());
-        let co: Box<dyn Any<Co> + Send> = Box::new(usize_ref.clone());
-        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
-        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
 
         // borrowed `UsizeRef` + Send
         let inv: &(dyn Any<Inv> + Send) = &usize_ref;
         let co: &(dyn Any<Co> + Send) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        #[cfg(any(feature = "std", feature = "alloc"))]
         assert_eq!(&format!("{:?}", co), "dyn Any<Co> + Send");
-
-        // owned `UsizeRef` + Send + Sync
-        let usize_ref = UsizeRef(&usize_.0);
-        let inv: Box<dyn Any<Inv> + Send + Sync> = Box::new(usize_ref.clone());
-        let co: Box<dyn Any<Co> + Send + Sync> = Box::new(usize_ref.clone());
-        assert_eq!(inv.downcast::<UsizeRef>().unwrap().0, &5_usize);
-        assert_eq!(co.downcast::<UsizeRef>().unwrap().0, &5_usize);
 
         // borrowed `UsizeRef` + Send + Sync
         let inv: &(dyn Any<Inv> + Send + Sync) = &usize_ref;
         let co: &(dyn Any<Co> + Send + Sync) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
+        #[cfg(any(feature = "std", feature = "alloc"))]
         assert_eq!(&format!("{:?}", inv), "dyn Any<Inv> + Send + Sync")
     }
 }
