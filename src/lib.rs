@@ -37,6 +37,7 @@
 //! - Supports types with any number of generic type parameters
 //! - Provides the [`macro@Transient`] `derive` macro to implement the `Transient`
 //!   trait for most types
+//! - Supports `no_std` environments with or without `alloc`
 //!
 //! # Limitations
 //! - Requires a single `unsafe` trait to be implemented for types wishing to
@@ -364,9 +365,11 @@ struct ReadMe;
 
 // A facade around the types we need from the `std` and `alloc` crates to avoid
 // import wrangling having to happen in every module (borrowed from Serde)
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[allow(unused_imports)]
 mod lib {
     mod core {
-        #[cfg(all(feature = "alloc", not(feature = "std")))]
+        #[cfg(not(feature = "std"))]
         pub(crate) use alloc::*;
         #[cfg(feature = "std")]
         pub(crate) use std::*;
