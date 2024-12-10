@@ -346,6 +346,8 @@ impl TypeId {
     /// # Examples
     ///
     /// ```
+    /// 
+    /// # #[cfg(any(feature = "std", feature = "alloc"))] {
     /// use transient::{Transient, Any, TypeId};
     ///
     /// fn is_string_slice<T: Transient>(_s: &T) -> bool {
@@ -359,6 +361,7 @@ impl TypeId {
     /// assert_eq!(is_string_slice(&string), false);
     /// assert_eq!(is_string_slice(&string_slice), true);
     /// assert_eq!(is_string_slice(&"cookie monster"), true);
+    /// # }
     /// ```
     #[inline]
     pub fn of<T: Transient>() -> Self {
