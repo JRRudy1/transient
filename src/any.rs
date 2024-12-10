@@ -346,7 +346,7 @@ impl TypeId {
     /// # Examples
     ///
     /// ```
-    /// 
+    ///
     /// # #[cfg(any(feature = "std", feature = "alloc"))] {
     /// use transient::{Transient, Any, TypeId};
     ///
