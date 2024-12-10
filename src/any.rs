@@ -421,7 +421,7 @@ mod tests {
     use crate::{tr::Transient, Any, Co, Downcast, Inv};
 
     #[cfg(feature = "alloc")]
-    use alloc::boxed::Box;
+    use alloc::{boxed::Box, format};
     // use crate::lib::{format, Box};
 
     #[test]
