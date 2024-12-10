@@ -2,11 +2,11 @@
 
 use crate::{tr::Transient, Any, Co, Contra, Inv, TypeId};
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-use crate::lib::{Box, String, ToString};
+#[cfg(feature = "alloc")]
+use alloc::{boxed::Box, string::{String, ToString}};
 
 /// Tests for a covariant struct with no generic type parameters.
-#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg(feature = "alloc")]
 mod covariant {
     use super::*;
     use crate::Downcast;
