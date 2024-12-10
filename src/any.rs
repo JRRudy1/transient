@@ -6,8 +6,8 @@ use crate::{
     transient::Transient,
 };
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-use crate::lib::Box;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 use core::marker::{Send, Sync};
 
@@ -110,7 +110,7 @@ pub trait Downcast<R: Transience> {
     /// Attempt to downcast the box to a concrete type with its lifetime
     /// parameters restored, returning the original in the `Err` variant
     /// if the type was incorrect.
-    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
     where
         T::Transience: CanRecoverFrom<R>;
@@ -136,7 +136,7 @@ pub trait Downcast<R: Transience> {
     /// the incorrect type is *undefined behavior*. However, the the caller is _not_
     /// expected to uphold any lifetime guarantees, since the trait bounds handle
     /// this statically.
-    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
     where
         T::Transience: CanRecoverFrom<R>;
@@ -176,7 +176,7 @@ macro_rules! dyn_any_impls {
                 self.type_id() == TypeId::of::<T>()
             }
 
-            #[cfg(any(feature = "std", feature = "alloc"))]
+            #[cfg(feature = "alloc")]
             #[inline]
             fn downcast<T: Transient>(self: Box<Self>) -> Result<Box<T>, Box<Self>>
             where
@@ -216,7 +216,7 @@ macro_rules! dyn_any_impls {
                 }
             }
 
-            #[cfg(any(feature = "std", feature = "alloc"))]
+            #[cfg(feature = "alloc")]
             #[inline]
             unsafe fn downcast_unchecked<T: Transient>(self: Box<Self>) -> Box<T>
             where
@@ -420,11 +420,12 @@ impl core::hash::Hash for TypeId {
 mod tests {
     use crate::{tr::Transient, Any, Co, Downcast, Inv};
 
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    use crate::lib::{format, Box};
+    #[cfg(feature = "alloc")]
+    use alloc::boxed::Box;
+    // use crate::lib::{format, Box};
 
     #[test]
-    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     fn owned_primative_types() {
         let value = 5_usize;
         let valref: &usize = &value;
@@ -560,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     fn owned_custom_types() {
         let usize_ = Usize(5_usize);
         let usize_ref = UsizeRef(&usize_.0);
@@ -606,7 +607,7 @@ mod tests {
         assert_eq!(inv.downcast_ref::<Usize>().unwrap().0, 5_usize);
         assert_eq!(co.downcast_ref::<Usize>().unwrap().0, 5_usize);
 
-        #[cfg(any(feature = "std", feature = "alloc"))]
+        #[cfg(feature = "alloc")]
         assert_eq!(&format!("{:?}", stc), "dyn Any<()>");
 
         // borrowed `UsizeRef`
@@ -614,7 +615,7 @@ mod tests {
         let co: &dyn Any<Co> = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
-        #[cfg(any(feature = "std", feature = "alloc"))]
+        #[cfg(feature = "alloc")]
         assert_eq!(&format!("{:?}", co), "dyn Any<Co>");
 
         // borrowed `UsizeRef` + Send
@@ -622,7 +623,7 @@ mod tests {
         let co: &(dyn Any<Co> + Send) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
-        #[cfg(any(feature = "std", feature = "alloc"))]
+        #[cfg(feature = "alloc")]
         assert_eq!(&format!("{:?}", co), "dyn Any<Co> + Send");
 
         // borrowed `UsizeRef` + Send + Sync
@@ -630,7 +631,7 @@ mod tests {
         let co: &(dyn Any<Co> + Send + Sync) = &usize_ref;
         assert_eq!(inv.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
         assert_eq!(co.downcast_ref::<UsizeRef>().unwrap().0, &5_usize);
-        #[cfg(any(feature = "std", feature = "alloc"))]
+        #[cfg(feature = "alloc")]
         assert_eq!(&format!("{:?}", inv), "dyn Any<Inv> + Send + Sync")
     }
 }

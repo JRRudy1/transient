@@ -3,8 +3,8 @@
 use crate::any::{Any, TypeId};
 use crate::transience::Transience;
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-use crate::lib::Box;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 /// Unsafe trait defining the lifetime-relationships of a potentially non-`'static`
 /// type so that it can be safely erased to [`dyn Any`]. This trait can be safely
@@ -540,10 +540,14 @@ mod std_impls {
     }
 
     /// impls that require either the `std` or `alloc` feature
-    #[cfg(any(feature = "std", feature = "alloc"))]
+    #[cfg(feature = "alloc")]
     mod _alloc {
         use super::{Static, Transient};
-        use crate::lib::{borrow, collections, string, Box, Vec};
+        use alloc::boxed::Box;
+        use alloc::borrow;
+        use alloc::string;
+        use alloc::collections;
+        use alloc::vec::Vec;
         use crate::{Co, Covariant, Inv};
 
         impl_static! {
