@@ -2,16 +2,8 @@
 
 use crate::{tr::Transient, Any, Co, Contra, Inv, TypeId};
 
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-};
-#[cfg(feature = "std")]
-use std::{
-    boxed::Box,
-    string::{String, ToString},
-};
+#[cfg(any(feature = "std", feature = "alloc"))]
+use crate::lib::{Box, String, ToString};
 
 /// Tests for a covariant struct with no generic type parameters.
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -154,8 +146,8 @@ mod mixed_lifetimes {
 
     const STATIC_STR: &str = "static";
 
-    #[cfg(any(feature = "std", feature = "alloc"))]
     #[test]
+    #[cfg(any(feature = "std", feature = "alloc"))]
     #[rustfmt::skip]
     fn test_owned() {
         let short: M<'_, 'static> = M { func: |_| "!", string: STATIC_STR };

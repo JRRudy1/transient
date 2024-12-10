@@ -6,10 +6,8 @@ use crate::{
     transient::Transient,
 };
 
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::boxed::Box;
-#[cfg(feature = "std")]
-use std::boxed::Box;
+#[cfg(any(feature = "std", feature = "alloc"))]
+use crate::lib::Box;
 
 use core::marker::{Send, Sync};
 
@@ -346,7 +344,6 @@ impl TypeId {
     /// # Examples
     ///
     /// ```
-    ///
     /// # #[cfg(any(feature = "std", feature = "alloc"))] {
     /// use transient::{Transient, Any, TypeId};
     ///
@@ -423,10 +420,8 @@ impl core::hash::Hash for TypeId {
 mod tests {
     use crate::{tr::Transient, Any, Co, Downcast, Inv};
 
-    #[cfg(all(feature = "alloc", not(feature = "std")))]
-    use alloc::{boxed::Box, format};
-    #[cfg(feature = "std")]
-    use std::{boxed::Box, format};
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    use crate::lib::{format, Box};
 
     #[test]
     #[cfg(any(feature = "std", feature = "alloc"))]
