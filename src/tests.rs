@@ -3,7 +3,10 @@
 use crate::{tr::Transient, Any, Co, Contra, Inv, TypeId};
 
 #[cfg(feature = "alloc")]
-use alloc::{boxed::Box, string::{String, ToString}};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+};
 
 /// Tests for a covariant struct with no generic type parameters.
 #[cfg(feature = "alloc")]
