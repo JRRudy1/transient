@@ -37,6 +37,7 @@
 //! - Supports types with any number of generic type parameters
 //! - Provides the [`macro@Transient`] `derive` macro to implement the `Transient`
 //!   trait for most types
+//! - Supports `no_std` environments with or without `alloc`
 //!
 //! # Limitations
 //! - Requires a single `unsafe` trait to be implemented for types wishing to
@@ -62,6 +63,7 @@
 //! library once the `Transient` trait has been implemented or derived:
 //! ```
 //! # fn main() {
+//! # #[cfg(feature = "derive")] {
 //! use transient::*;
 //!
 //! #[derive(Transient, Debug, PartialEq)]
@@ -74,7 +76,7 @@
 //!
 //! let restored: &Usize = erased.downcast_ref::<Usize>().unwrap();
 //! assert_eq!(restored, &orig);
-//! # }
+//! # }}
 //! ```
 //! The trick is that the `Any` trait as used above is actually generic over a
 //! type known as the `Transience`, which defaults to `()`; so the relevant line
@@ -98,6 +100,7 @@
 //! `dyn Any<Inv>` when coercing a `Box` or reference to the trait object:
 //! ```
 //! # fn main() {
+//! # #[cfg(feature = "derive")] {
 //! use transient::*;
 //!
 //! #[derive(Transient, Debug, PartialEq)]
@@ -112,7 +115,7 @@
 //!
 //! let restored: &UsizeRef = erased.downcast_ref().unwrap();
 //! assert_eq!(restored, &orig);
-//! # }
+//! # }}
 //! ```
 //!
 //! And that's all it takes! Things get a slightly spicier in more complicated
@@ -307,12 +310,22 @@
 //! [variance]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [_subtyping and variance_]: https://doc.rust-lang.org/nomicon/subtyping.html
 //! [*the quality or state of being transient*]: https://www.merriam-webster.com/dictionary/transience
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Support using `transient` without the standard library
+#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs, clippy::missing_safety_doc)]
 #![allow(
     unknown_lints,
     clippy::too_long_first_doc_paragraph,
     clippy::needless_lifetimes
 )]
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 pub mod any;
 pub mod transience;
@@ -346,6 +359,27 @@ pub mod tr {
 #[cfg(test)]
 pub mod tests;
 
-#[cfg(doctest)]
+#[cfg(all(doctest, feature = "derive"))]
 #[doc = include_str!("../README.md")]
 struct ReadMe;
+
+// A facade around the types we need from the `std` and `alloc` crates to avoid
+// import wrangling having to happen in every module (borrowed from Serde)
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[allow(unused_imports)]
+mod lib {
+    mod core {
+        #[cfg(not(feature = "std"))]
+        pub(crate) use ::alloc::*;
+        #[cfg(feature = "std")]
+        pub(crate) use ::std::*;
+    }
+
+    pub(crate) use self::core::{
+        borrow,
+        boxed::Box,
+        collections, format, string,
+        string::{String, ToString},
+        vec::Vec,
+    };
+}

@@ -1,8 +1,15 @@
 //! Tests for various parts of the Transient API
 
+use crate::{tr::Transient, Any, Co, Contra, Inv, TypeId};
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+use crate::lib::{Box, String, ToString};
+
 /// Tests for a covariant struct with no generic type parameters.
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod covariant {
-    use crate::{tr::Transient, Any, Co, Downcast, TypeId};
+    use super::*;
+    use crate::Downcast;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a> {
@@ -48,8 +55,10 @@ mod covariant {
 }
 
 /// Tests for a struct with a generic type parameter
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod one_type_param {
-    use crate::{tr::Transient, Any, Downcast, Inv, TypeId};
+    use super::*;
+    use crate::Downcast;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T> {
@@ -94,7 +103,7 @@ mod one_type_param {
 
 /// Tests for a struct with a two generic type parameters
 mod two_type_params {
-    use crate::{Inv, Transient};
+    use super::*;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct S<'a, T1, T2> {
@@ -109,7 +118,7 @@ mod two_type_params {
 
 /// Tests for a struct with two lifetime params that have different variances
 mod mixed_lifetimes {
-    use crate::{tr::Transient, Any, Co, Contra, TypeId};
+    use super::*;
 
     type ContraCo<'s, 'l> = (Contra<'s>, Co<'l>);
 
@@ -138,6 +147,7 @@ mod mixed_lifetimes {
     const STATIC_STR: &str = "static";
 
     #[test]
+    #[cfg(any(feature = "std", feature = "alloc"))]
     #[rustfmt::skip]
     fn test_owned() {
         let short: M<'_, 'static> = M { func: |_| "!", string: STATIC_STR };
