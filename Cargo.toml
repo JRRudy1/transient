@@ -47,7 +47,7 @@ std = []
 alloc = []
 
 # Provides a `derive` macro for implementing the `Transient` trait
-derive = ["transient-derive"]
+derive = ["std", "transient-derive"]
 
 # Provides `Transient` implementations for `ndarray` types
 ndarray = ["dep:ndarray"]
