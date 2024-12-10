@@ -370,9 +370,9 @@ struct ReadMe;
 mod lib {
     mod core {
         #[cfg(not(feature = "std"))]
-        pub(crate) use alloc::*;
+        pub(crate) use ::alloc::*;
         #[cfg(feature = "std")]
-        pub(crate) use std::*;
+        pub(crate) use ::std::*;
     }
 
     pub(crate) use self::core::{
