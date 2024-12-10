@@ -62,6 +62,7 @@
 //! library once the `Transient` trait has been implemented or derived:
 //! ```
 //! # fn main() {
+//! # #[cfg(feature = "derive")] {
 //! use transient::*;
 //!
 //! #[derive(Transient, Debug, PartialEq)]
@@ -74,7 +75,7 @@
 //!
 //! let restored: &Usize = erased.downcast_ref::<Usize>().unwrap();
 //! assert_eq!(restored, &orig);
-//! # }
+//! # }}
 //! ```
 //! The trick is that the `Any` trait as used above is actually generic over a
 //! type known as the `Transience`, which defaults to `()`; so the relevant line
@@ -98,6 +99,7 @@
 //! `dyn Any<Inv>` when coercing a `Box` or reference to the trait object:
 //! ```
 //! # fn main() {
+//! # #[cfg(feature = "derive")] {
 //! use transient::*;
 //!
 //! #[derive(Transient, Debug, PartialEq)]
@@ -112,7 +114,7 @@
 //!
 //! let restored: &UsizeRef = erased.downcast_ref().unwrap();
 //! assert_eq!(restored, &orig);
-//! # }
+//! # }}
 //! ```
 //!
 //! And that's all it takes! Things get a slightly spicier in more complicated
@@ -356,6 +358,6 @@ pub mod tr {
 #[cfg(test)]
 pub mod tests;
 
-#[cfg(doctest)]
+#[cfg(all(doctest, feature = "derive"))]
 #[doc = include_str!("../README.md")]
 struct ReadMe;
