@@ -543,12 +543,12 @@ mod std_impls {
     #[cfg(feature = "alloc")]
     mod _alloc {
         use super::{Static, Transient};
-        use alloc::boxed::Box;
-        use alloc::borrow;
-        use alloc::string;
-        use alloc::collections;
-        use alloc::vec::Vec;
         use crate::{Co, Covariant, Inv};
+        use alloc::borrow;
+        use alloc::boxed::Box;
+        use alloc::collections;
+        use alloc::string;
+        use alloc::vec::Vec;
 
         impl_static! {
             Box<str>,
