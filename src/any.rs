@@ -422,7 +422,6 @@ mod tests {
 
     #[cfg(feature = "alloc")]
     use alloc::{boxed::Box, format};
-    // use crate::lib::{format, Box};
 
     #[test]
     #[cfg(feature = "alloc")]
