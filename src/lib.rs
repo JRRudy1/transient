@@ -362,24 +362,3 @@ pub mod tests;
 #[cfg(all(doctest, feature = "derive"))]
 #[doc = include_str!("../README.md")]
 struct ReadMe;
-
-// A facade around the types we need from the `std` and `alloc` crates to avoid
-// import wrangling having to happen in every module (borrowed from Serde)
-#[cfg(any(feature = "std", feature = "alloc"))]
-#[allow(unused_imports)]
-mod lib {
-    mod core {
-        #[cfg(not(feature = "std"))]
-        pub(crate) use ::alloc::*;
-        #[cfg(feature = "std")]
-        pub(crate) use ::std::*;
-    }
-
-    pub(crate) use self::core::{
-        borrow,
-        boxed::Box,
-        collections, format, string,
-        string::{String, ToString},
-        vec::Vec,
-    };
-}
