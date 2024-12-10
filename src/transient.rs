@@ -3,10 +3,8 @@
 use crate::any::{Any, TypeId};
 use crate::transience::Transience;
 
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::boxed::Box;
-#[cfg(feature = "std")]
-use std::boxed::Box;
+#[cfg(any(feature = "std", feature = "alloc"))]
+use crate::lib::Box;
 
 /// Unsafe trait defining the lifetime-relationships of a potentially non-`'static`
 /// type so that it can be safely erased to [`dyn Any`]. This trait can be safely
@@ -545,16 +543,12 @@ mod std_impls {
     #[cfg(any(feature = "std", feature = "alloc"))]
     mod _alloc {
         use super::{Static, Transient};
+        use crate::lib::{borrow, collections, string, Box, Vec};
         use crate::{Co, Covariant, Inv};
 
-        #[cfg(all(feature = "alloc", not(feature = "std")))]
-        use alloc::{borrow, boxed, collections, string, vec};
-        #[cfg(feature = "std")]
-        use std::{borrow, boxed, collections, string, vec};
-
         impl_static! {
-            boxed::Box<str>,
-            boxed::Box<dyn ::core::any::Any>,
+            Box<str>,
+            Box<dyn ::core::any::Any>,
             string::String,
             string::FromUtf8Error,
             string::FromUtf16Error,
@@ -569,14 +563,14 @@ mod std_impls {
             type Transience = (Co<'a>, Covariant<T>);
         }
 
-        unsafe impl<T: Transient> Transient for vec::Vec<T> {
-            type Static = vec::Vec<T::Static>;
+        unsafe impl<T: Transient> Transient for Vec<T> {
+            type Static = Vec<T::Static>;
             type Transience = Covariant<T>;
         }
-        impl_refs!(vec::Vec<T> [T: Transient] (Covariant<T>));
+        impl_refs!(Vec<T> [T: Transient] (Covariant<T>));
 
-        unsafe impl<T: Transient> Transient for boxed::Box<[T]> {
-            type Static = boxed::Box<[T::Static]>;
+        unsafe impl<T: Transient> Transient for Box<[T]> {
+            type Static = Box<[T::Static]>;
             type Transience = Covariant<T>;
         }
 
