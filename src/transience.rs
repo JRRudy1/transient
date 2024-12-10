@@ -3,7 +3,7 @@
 //! [`CanRecoverFrom`] traits that establish the allowable transitions between
 //! transiences.
 use crate::tr::Transient;
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 /// Marker trait for types used to establish the [variance] of a type with
 /// respect to each of its lifetime parameters, including [`Co`], [`Contra`],
