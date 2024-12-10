@@ -461,7 +461,7 @@ mod std_impls {
             ::core::str::Utf8Error,
             ::core::fmt::Error,
         }
-        
+
         // the `net` module was not moved from `std` to `core` until Rust 1.77, so the
         // "std" feature is required on earlier versions (see the `_std` submodule)
         #[rustversion::since(1.77)]
@@ -645,7 +645,7 @@ mod std_impls {
             [K: Transient, V: Transient]
             (Covariant<K>, Covariant<V>)
         );
-        
+
         // on later Rust versions this impl is available without the "std" feature
         #[rustversion::before(1.77)]
         impl_static!(::std::net::AddrParseError);
