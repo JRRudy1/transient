@@ -698,69 +698,6 @@ mod ndarray_impls {
     }
 }
 
-#[cfg(feature = "pyo3")]
-mod pyo3_impls {
-    use crate::{tr::Transient, Co, Static};
-    use pyo3::pyclass::{boolean_struct::False, PyClass};
-    use pyo3::{Borrowed, Bound, Py, PyErr, PyRef, PyRefMut};
-
-    /// Requires the `pyo3` crate feature
-    impl<T: 'static> Static for Py<T> {}
-
-    /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: 'static> Transient for Bound<'py, T> {
-        type Static = Bound<'static, T>;
-        type Transience = Co<'py>;
-    }
-
-    /// Requires the `pyo3` crate feature
-    unsafe impl<'a, 'py, T: 'static> Transient for Borrowed<'a, 'py, T> {
-        type Static = Borrowed<'static, 'static, T>;
-        type Transience = (Co<'a>, Co<'py>);
-    }
-
-    /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: PyClass> Transient for PyRef<'py, T> {
-        type Static = PyRef<'static, T>;
-        type Transience = Co<'py>;
-    }
-
-    /// Requires the `pyo3` crate feature
-    unsafe impl<'py, T: PyClass<Frozen = False>> Transient for PyRefMut<'py, T> {
-        type Static = PyRefMut<'static, T>;
-        type Transience = Co<'py>;
-    }
-
-    /// Requires the `pyo3` crate feature
-    impl Static for PyErr {}
-}
-
-#[cfg(feature = "numpy")]
-mod numpy_impls {
-    use numpy::ndarray::Dimension;
-    use numpy::{Element, PyReadonlyArray, PyReadwriteArray};
-
-    /// Requires the `numpy` crate feature
-    unsafe impl<'py, T, D> crate::Transient for PyReadonlyArray<'py, T, D>
-    where
-        T: Element + 'static,
-        D: Dimension + 'static,
-    {
-        type Static = PyReadonlyArray<'static, T, D>;
-        type Transience = crate::Co<'py>;
-    }
-
-    /// Requires the `numpy` crate feature
-    unsafe impl<'py, T, D> crate::Transient for PyReadwriteArray<'py, T, D>
-    where
-        T: Element + 'static,
-        D: Dimension + 'static,
-    {
-        type Static = PyReadwriteArray<'static, T, D>;
-        type Transience = crate::Co<'py>;
-    }
-}
-
 #[cfg(feature = "uuid")]
 mod uuid_impls {
     use super::Static;

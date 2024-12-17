@@ -24,8 +24,6 @@ rustversion = "1.0"
 
 transient-derive = { path = "derive", version = "0.4.1", optional = true }
 ndarray = { version = "0.15", optional = true }
-numpy = { version = "0.21", optional = true }
-pyo3 = { version = ">=0.21", optional = true }
 uuid = { version = "1", optional = true }
 either = { version = ">=1", default-features = false, optional = true }
 serde_json = { version = ">=1", default-features = false, optional = true, features = ["std"] }
@@ -51,12 +49,6 @@ derive = ["transient-derive"]
 
 # Provides `Transient` implementations for `ndarray` types
 ndarray = ["dep:ndarray"]
-
-# Provides `Transient` implementations for `pyo3` types
-pyo3 = ["dep:pyo3"]
-
-# Provides `Transient` implementations for `numpy` types
-numpy = ["dep:numpy", "pyo3"]
 
 # Provides `Transient` implementations for `uuid` types
 uuid = ["dep:uuid"]
