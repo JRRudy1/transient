@@ -630,7 +630,7 @@ mod tests {
             type Static = C<'static>;
             type Transience = Co<'a>;
         }
-        assert_can_transend_to::<(A, C), Co<'a>>();
+        assert_can_transend_to::<(A<'a>, C), Co<'a>>();
     }
 
     #[test]
@@ -643,14 +643,14 @@ mod tests {
         }
         struct B;
         impl Static for B {}
-        assert_can_transend_to::<(A, B), Contra<'a>>();
+        assert_can_transend_to::<(A<'a>, B), Contra<'a>>();
         #[allow(dead_code)]
         struct C<'a>(fn(&'a ()));
         unsafe impl<'a> Transient for C<'a> {
             type Static = C<'static>;
             type Transience = Contra<'a>;
         }
-        assert_can_transend_to::<(A, C), Contra<'a>>();
+        assert_can_transend_to::<(A<'a>, C<'a>), Contra<'a>>();
     }
 
     #[test]
@@ -663,14 +663,14 @@ mod tests {
         }
         struct B;
         impl Static for B {}
-        assert_can_transend_to::<(A, B), Inv<'a>>();
+        assert_can_transend_to::<(A<'a>, B), Inv<'a>>();
         #[allow(dead_code)]
         struct C<'a>(fn(&'a ()) -> &'a ());
         unsafe impl<'a> Transient for C<'a> {
             type Static = C<'static>;
             type Transience = Inv<'a>;
         }
-        assert_can_transend_to::<(A, C), Inv<'a>>();
+        assert_can_transend_to::<(A<'a>, C<'a>), Inv<'a>>();
     }
 
     #[test]
@@ -687,6 +687,6 @@ mod tests {
             type Static = B<'static>;
             type Transience = Contra<'a>;
         }
-        assert_can_transend_to::<(A, B), Inv<'a>>();
+        assert_can_transend_to::<(A<'a>, B<'a>), Inv<'a>>();
     }
 }
